@@ -4,7 +4,8 @@ namespace SimpleNeo4j\Tests;
 
 class ClientTest extends \PHPUnit_Framework_TestCase
 {
-    public function testClientCreationBasic() {
+    public function testClientCreationBasic()
+    {
         $config = [
             'host' => '127.0.0.1',
             'username' => 'myuser',
@@ -19,7 +20,8 @@ class ClientTest extends \PHPUnit_Framework_TestCase
         $this->assertFalse($client->isSecure());
     }
 
-    public function testClientCreationSecureNoPort() {
+    public function testClientCreationSecureNoPort()
+    {
         $config = [
             'host' => '127.0.0.1',
             'username' => 'myuser',
@@ -34,7 +36,8 @@ class ClientTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($client->isSecure());
     }
 
-    public function testClientCreationNotSecurePort() {
+    public function testClientCreationNotSecurePort()
+    {
         $config = [
             'host' => '127.0.0.1',
             'username' => 'myuser',
@@ -50,7 +53,8 @@ class ClientTest extends \PHPUnit_Framework_TestCase
         $this->assertFalse($client->isSecure());
     }
 
-    public function testClientCreationSecurePort() {
+    public function testClientCreationSecurePort()
+    {
         $config = [
             'host' => '127.0.0.1',
             'username' => 'myuser',
