@@ -1,5 +1,5 @@
 {
-  "name": "dfoxinator/SimpleNeo4j",
+  "name": "dfoxinator/simple-neo4j",
   "description": "Simple Neo4j Client",
   "license": "MIT",
   "require": {
