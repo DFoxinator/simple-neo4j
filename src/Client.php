@@ -187,7 +187,7 @@ class Client
         ];
 
         if (isset($this->_config[self::CONFIG_NO_SSL_VERIFY])) {
-            $post_options['verify'] = $this->_config[self::CONFIG_NO_SSL_VERIFY];
+            $post_options['verify'] = !$this->_config[self::CONFIG_NO_SSL_VERIFY];
         }
 
         try {
