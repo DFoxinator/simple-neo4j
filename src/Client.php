@@ -105,6 +105,8 @@ class Client
             'statements' => $this->_query_batch
         ];
 
+        $this->_query_batch = [];
+
         $result = $this->_sendNeo4jPostRequest( self::NEO4J_CYPHER_ENDPOINT, json_encode($send_params));
         $result_list = new ResultSet($result);
 
