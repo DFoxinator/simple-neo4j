@@ -9,6 +9,7 @@ class Client
     const CONFIG_SECURE = 'secure';
     const CONFIG_PROTOCOL = 'protocol';
     const CONFIG_ERROR_MODE = 'error_mode';
+    const CONFIG_NO_SSL_VERIFY = 'no_ssl_verify';
 
     const ERROR_MODE_HIDE_ERRORS = 'hide';
     const ERROR_MODE_THROW_ERRORS = 'throw';
@@ -21,6 +22,7 @@ class Client
         self::CONFIG_SECURE => false,
         self::CONFIG_PROTOCOL => 'http',
         self::CONFIG_ERROR_MODE => '',
+        self::CONFIG_NO_SSL_VERIFY => false,
     ];
 
     /**
@@ -183,6 +185,10 @@ class Client
             'headers' => $this->_getRequestHeaders(),
             'body' => $body,
         ];
+
+        if (isset($this->_config[self::CONFIG_NO_SSL_VERIFY])) {
+            $post_options['verify'] = $this->_config[self::CONFIG_NO_SSL_VERIFY];
+        }
 
         try {
             $result = $this->_http_client->post($uri, $post_options);
