@@ -86,7 +86,7 @@ class Client
     {
         $this->_query_batch[] = [
             'statement' => $query,
-            'params' => (object)$params,
+            'parameters' => (object)$params,
         ];
     }
 
