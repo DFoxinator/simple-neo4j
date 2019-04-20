@@ -1,8 +1,6 @@
 <?php
 
-namespace SimpleNeo4j;
-
-use SimpleNeo4j\Exception\CypherQueryException;
+namespace SimpleNeo4j\HttpClient;
 
 class ResultSet
 {
@@ -12,13 +10,10 @@ class ResultSet
     private $_results = [];
 
     /**
-     * @var \SimpleNeo4j\Exception\CypherQueryException[]
+     * @var \SimpleNeo4j\HttpClient\Exception\CypherQueryException[]
      */
     private $_errors = [];
 
-    /**
-     * @param array $data
-     */
     public function __construct(array $data = [])
     {
         if ($data) {
@@ -26,9 +21,6 @@ class ResultSet
         }
     }
 
-    /**
-     * @param $data
-     */
     private function _parseData(array $data)
     {
         if (!isset($data['results']) || !is_array($data['results'])) {
@@ -51,48 +43,33 @@ class ResultSet
 
         if (isset($data['errors']) && is_array($data['errors'])) {
             foreach ($data['errors'] as $error_info) {
-                $error = new CypherQueryException($error_info['message'] ?? 'Unknown Cypher error.');
+                $error = new Exception\CypherQueryException($error_info['message'] ?? 'Unknown Cypher error.');
                 $error->setCypherErrorCode($error_info['code'] ?? 'unknown');
                 $this->_errors[] = $error;
             }
         }
     }
 
-    /**
-     * @return bool
-     */
     public function hasError() : bool
     {
         return !empty($this->_errors);
     }
 
-    /**
-     * @return array|null
-     */
-    public function getSingleResult()
+    public function getSingleResult() : ?array
     {
         return ($this->_results[0] ?? null);
     }
 
-    /**
-     * @return array
-     */
     public function getAllResults() : array
     {
         return $this->_results;
     }
 
-    /**
-     * @return \SimpleNeo4j\Exception\CypherQueryException|null
-     */
-    public function getFirstError()
+    public function getFirstError() : ?Exception\CypherQueryException
     {
         return ($this->_errors[0] ?? null);
     }
 
-    /**
-     * @return \SimpleNeo4j\Exception\CypherQueryException[]
-     */
     public function getAllErrors() : array
     {
         return $this->_errors;

@@ -12,7 +12,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'password' => 'mypw',
         ];
 
-        $client = new \SimpleNeo4j\Client( $config );
+        $client = new \SimpleNeo4j\HttpClient\Client( $config );
 
         $this->assertEquals('127.0.0.1', $client->getHost());
         $this->assertEquals(7474, $client->getPort());
@@ -29,7 +29,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'secure' => true,
         ];
 
-        $client = new \SimpleNeo4j\Client( $config );
+        $client = new \SimpleNeo4j\HttpClient\Client( $config );
 
         $this->assertEquals(7473, $client->getPort());
         $this->assertEquals('https', $client->getProtocol());
@@ -46,7 +46,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'port' => 8888,
         ];
 
-        $client = new \SimpleNeo4j\Client( $config );
+        $client = new \SimpleNeo4j\HttpClient\Client( $config );
 
         $this->assertEquals(8888, $client->getPort());
         $this->assertEquals('http', $client->getProtocol());
@@ -63,7 +63,7 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'port' => 9999,
         ];
 
-        $client = new \SimpleNeo4j\Client( $config );
+        $client = new \SimpleNeo4j\HttpClient\Client( $config );
 
         $this->assertEquals(9999, $client->getPort());
         $this->assertEquals('https', $client->getProtocol());
