@@ -204,9 +204,11 @@ class Manager {
 
         $relationship_type = $relationship->getEntityType();
 
+        $from_type = $relationship->getStartNode()->getEntityType();
+        $to_type = $relationship->getEndNode()->getEntityType();
         if (isset($relationship_info['extra']['unique']) && $relationship_info['extra']['unique'] === true) {
             $query = "
-                     MATCH (n1:Person{{$n1_primary_field}:{n1_id}}), (n2:Person{{$n2_primary_field}:{n2_id}})
+                     MATCH (n1:{$from_type}{{$n1_primary_field}:{n1_id}}), (n2:{$to_type}{{$n2_primary_field}:{n2_id}})
                      WITH n1, n2
                      MERGE (n1)-[r:{$relationship_type}]->(n2)
                      ON CREATE SET r = {rel_props}
