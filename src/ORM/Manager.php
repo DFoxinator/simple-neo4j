@@ -146,7 +146,7 @@ class Manager {
         return $objects;
     }
 
-    public function createObject(ModelAbstract $object)
+    public function createNode(ModelAbstract $object)
     {
         $entity = $object->getEntityType();
 
@@ -177,7 +177,7 @@ class Manager {
         try {
             $result = $this->_neo4j_client->executeQuery($query, $params);
             $info = $result->getSingleResult()[0]['info'];
-            return $object->withProperties($info);
+            return $object->withProperties($info, $this);
             //print_r($result->getSingleResult());exit;
         } catch (HttpClient\Exception\CypherQueryException $e) {
             if ($e->isConstraintViolation()) {
@@ -290,6 +290,134 @@ class Manager {
 
         return $formatted_relations;
 
+    }
+
+    public function saveNode(NodeModelAbstract $node) : NodeModelAbstract
+    {
+        $modified_properties = $node->getModifiedProperties();
+
+        if (!$modified_properties) {
+            return $node;
+        }
+
+
+        $primary_id_info = $node->getPrimaryIdInfo();
+        $model_class = get_class($node);
+
+        $entity = $node::ENTITY;
+
+        $key = $primary_id_info['name'];
+
+        $query = "MATCH (n:$entity{{$key}:{id}})
+                  WITH n
+                  SET n += {props}
+                  WITH n, ID(n) as neo4j_id
+                  RETURN n{.*, neo4j_id} as info";
+
+        $params = ['id' => $primary_id_info['value'], 'props' => $modified_properties];
+
+        $result = $this->_neo4j_client->executeQuery($query, $params);
+
+        $result = $result->getSingleResult();
+
+        if (!isset($result[0]['info'])) {
+            return null;
+        }
+
+        return new $model_class($result[0]['info'], $this);
+
+    }
+
+    public function deleteNode(NodeModelAbstract $node)
+    {
+        $primary_id_info = $node->getPrimaryIdInfo();
+
+        $entity = $node::ENTITY;
+
+        $key = $primary_id_info['name'];
+
+        $query = "MATCH (n:$entity{{$key}:{id}})
+                  WITH n
+                  DETACH DELETE n";
+
+        $params = ['id' => $primary_id_info['value']];
+
+        $result = $this->_neo4j_client->executeQuery($query, $params);
+    }
+
+    public function saveRelationship(RelationshipModelAbstract $relationship)
+    {
+        $modified_properties = $relationship->getModifiedProperties();
+
+        if (!$modified_properties) {
+            return $relationship;
+        }
+
+        $from_node_info = $relationship->getStartNode()->getPropertyInfo();
+        $to_node_info = $relationship->getEndNode()->getPropertyInfo();
+
+        $n1_primary_field = $from_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
+        $n2_primary_field = $to_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
+
+        $n1_id = $from_node_info['props'][$n1_primary_field];
+        $n2_id = $to_node_info['props'][$n2_primary_field];
+
+        $relationship_type = $relationship->getEntityType();
+
+        $from_type = $relationship->getStartNode()->getEntityType();
+        $to_type = $relationship->getEndNode()->getEntityType();
+
+        $query = "
+                 MATCH (n1:{$from_type}{{$n1_primary_field}:{n1_id}}), (n2:{$to_type}{{$n2_primary_field}:{n2_id}})
+                 WITH n1, n2
+                 MATCH (n1)-[r:{$relationship_type}]->(n2)
+                 WHERE ID(r)={relationship_neo4j_id}
+                 WITH r
+                 SET r += {props}
+                 WITH r, ID(r) as neo4j_id
+                 RETURN r{.*, neo4j_id} as info
+              ";
+
+        $result = $this->_neo4j_client->executeQuery($query, [
+            'n1_id' => $n1_id,
+            'n2_id' => $n2_id,
+            'relationship_neo4j_id' => $relationship->getNeo4jId(),
+            'props' => $modified_properties,
+        ]);
+
+        return $relationship->withProperties($result->getSingleResult()[0]['info']);
+    }
+
+    public function deleteRelationship(RelationshipModelAbstract $relationship)
+    {
+        $from_node_info = $relationship->getStartNode()->getPropertyInfo();
+        $to_node_info = $relationship->getEndNode()->getPropertyInfo();
+
+        $n1_primary_field = $from_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
+        $n2_primary_field = $to_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
+
+        $n1_id = $from_node_info['props'][$n1_primary_field];
+        $n2_id = $to_node_info['props'][$n2_primary_field];
+
+        $relationship_type = $relationship->getEntityType();
+
+        $from_type = $relationship->getStartNode()->getEntityType();
+        $to_type = $relationship->getEndNode()->getEntityType();
+
+        $query = "
+                 MATCH (n1:{$from_type}{{$n1_primary_field}:{n1_id}}), (n2:{$to_type}{{$n2_primary_field}:{n2_id}})
+                 WITH n1, n2
+                 MATCH (n1)-[r:{$relationship_type}]->(n2)
+                 WHERE ID(r)={relationship_neo4j_id}
+                 WITH r
+                 DELETE r
+              ";
+
+        $result = $this->_neo4j_client->executeQuery($query, [
+            'n1_id' => $n1_id,
+            'n2_id' => $n2_id,
+            'relationship_neo4j_id' => $relationship->getNeo4jId(),
+        ]);
     }
 
     private function _getPropsInfo(array $props) : array {

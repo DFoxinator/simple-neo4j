@@ -4,9 +4,9 @@ namespace SimpleNeo4j\ORM;
 
 abstract class NodeModelAbstract extends ModelAbstract {
 
-    public function withProperties(array $properties) : ModelAbstract
+    public function withProperties(array $properties, Manager $manager = null) : ModelAbstract
     {
-        return new $this($properties, $this->_manager);
+        return new $this($properties, $manager ?? $this->_manager);
     }
 
     public function __get($name)
@@ -37,6 +37,20 @@ abstract class NodeModelAbstract extends ModelAbstract {
         }
 
         return $relations_info;
+    }
+
+    public function getPrimaryIdInfo() : array
+    {
+        foreach ($this->_field_info as $field_name => $field_info) {
+            if (isset($field_info['primary']) && $field_info['primary'] === true) {
+                return [
+                    'name' => $field_name,
+                    'value' => $field_info['value'],
+                ];
+            }
+        }
+
+        // throw error!
     }
 
 }
