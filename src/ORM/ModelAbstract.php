@@ -38,7 +38,6 @@ abstract class ModelAbstract {
     protected $_manager;
 
     private $_neo4j_id;
-    private $_has_unsaved_changes;
 
     public function __construct(array $data = [], Manager $manager = null)
     {
@@ -89,6 +88,7 @@ abstract class ModelAbstract {
                 $use_value = $data[$clean_prop_name];
             }
 
+            $prop_value['value'] = $use_value;
             $this->_field_info[$clean_prop_name] = $prop_value;
 
             if (($prop_value[self::PROP_INFO_TYPE] != self::TYPE_AUTO_INCREMENT && $prop_value[self::PROP_INFO_TYPE] != self::TYPE_RELATION) || is_numeric($use_value)) {
@@ -99,8 +99,6 @@ abstract class ModelAbstract {
         }
 
         $this->_neo4j_id = $data['neo4j_id'] ?? null;
-        $this->_has_unsaved_changes = $this->_neo4j_id === null;
-
     }
 
     public function getPropertyInfo() : array
@@ -159,7 +157,30 @@ abstract class ModelAbstract {
         return $objects;
     }
 
-    public function set(string $property, $value) {
+    public function getModifiedProperties() : array
+    {
+        $property_info = $this->getPropertyInfo();
 
+        $modified_fields = [];
+        $modified_field = null;
+
+        foreach ($this->_field_info as $field_name => $field_info) {
+            if ($field_info['type'] != ModelAbstract::TYPE_RELATION && $field_info['value'] !== $property_info['props'][$field_name]) {
+                $modified_fields[$field_name] = $property_info['props'][$field_name];
+            } elseif ($field_info['type'] === ModelAbstract::TYPE_MODIFIED_ON) {
+                $modified_field = $field_name;
+            }
+        }
+
+        if ($modified_fields && $modified_field) {
+            $modified_fields[$modified_field] = time();
+        }
+
+        return $modified_fields;
+    }
+
+    public function getNeo4jId() : int
+    {
+        return $this->_neo4j_id;
     }
 }
