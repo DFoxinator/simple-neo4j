@@ -246,6 +246,7 @@ class Manager {
 
     public function loadRelationsForNode(NodeModelAbstract $node, array $relation_types) {
         $entity = $node->getEntityType();
+        $node_id_info = $node->getPrimaryIdInfo();
 
         $relations_info = $node->getRelationsInfo($relation_types);
 
@@ -253,16 +254,20 @@ class Manager {
             if  ($relation_info[ModelAbstract::PROP_INFO_RELATED_DIRECTION] === ModelAbstract::PROP_INFO_RELATED_DIRECTION_OUTGOING) {
                 $left_arrow = '';
                 $right_arrow = '>';
+            } else {
+                $left_arrow = '<';
+                $right_arrow = '';
             }
 
             $query = '
-                  MATCH (n:' . $entity . ')
+                  MATCH (n:' . $entity . '{' . $node_id_info['name'] . ':{id}})
                   WITH n
                   MATCH (n)' . $left_arrow . '-[r:' . $relation_info['related_type']::ENTITY . ']-' . $right_arrow . '(other)
                   RETURN other as rel_node, r as rel_rel, {rel_type} as rel_type';
 
             $params = [
                 'rel_type' => $relation_name,
+                'id' => $node_id_info['value'],
             ];
 
             $this->_neo4j_client->addQueryToBatch($query, $params);
