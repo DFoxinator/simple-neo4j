@@ -53,4 +53,25 @@ abstract class NodeModelAbstract extends ModelAbstract {
         // throw error!
     }
 
+    protected function _preloadAllRelations()
+    {
+        $relation_names = [];
+
+        foreach ($this->_field_info as $field_name => $field_info) {
+            $field_name_formatted = '_' . $field_name;
+
+            if ($field_info[ModelAbstract::PROP_INFO_TYPE] == ModelAbstract::TYPE_RELATION && !isset($this->{$field_name_formatted})) {
+                $relation_names[] = $field_name_formatted;
+            }
+        }
+
+        $relations = $this->_manager->loadRelationsForNode($this, $relation_names);
+
+        foreach ($relations as $relation_name => $relation_set) {
+            $this->{$relation_name} = $relation_set;
+        }
+
+        return $this->{$relation_name};
+    }
+
 }

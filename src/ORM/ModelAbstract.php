@@ -21,6 +21,7 @@ abstract class ModelAbstract {
     const TYPE_CREATED_ON = 'created_on';
     const TYPE_MODIFIED_ON = 'modified_on';
     const TYPE_RELATION = 'relation';
+    const TYPE_JSON = 'json';
 
     const NON_VALUE_TYPES = [
         self::TYPE_AUTO_INCREMENT,
@@ -84,6 +85,8 @@ abstract class ModelAbstract {
                 } else {
                     throw new Exception\MissingPropertyException('Property is missing - ' . $clean_prop_name);
                 }
+            } elseif ($prop_value[self::PROP_INFO_TYPE] == ModelAbstract::TYPE_JSON) {
+                $use_value = is_array($data[$clean_prop_name]) ? $data[$clean_prop_name] : json_decode($data[$clean_prop_name], true);
             } else {
                 $use_value = $data[$clean_prop_name];
             }
@@ -117,6 +120,9 @@ abstract class ModelAbstract {
                 if (isset($this->{"_" . $field_name})) {
                     $property_into['props'][$field_name] = $this->{"_" . $field_name};
                 }
+            } elseif ($field_value[self::PROP_INFO_TYPE] == self::TYPE_JSON) {
+                $current_value = $this->{"_" . $field_name};
+                $property_into['props'][$field_name] = is_array($current_value) ? json_encode($current_value) : $current_value;
             }
             elseif ($field_value[self::PROP_INFO_TYPE] == self::TYPE_RELATION) {
 
@@ -165,10 +171,16 @@ abstract class ModelAbstract {
         $modified_field = null;
 
         foreach ($this->_field_info as $field_name => $field_info) {
-            if ($field_info['type'] != ModelAbstract::TYPE_RELATION && $field_info['value'] !== $property_info['props'][$field_name]) {
+            if ($field_info['type'] != ModelAbstract::TYPE_RELATION && $field_info['type'] != ModelAbstract::TYPE_JSON && $field_info['value'] !== $property_info['props'][$field_name]) {
                 $modified_fields[$field_name] = $property_info['props'][$field_name];
             } elseif ($field_info['type'] === ModelAbstract::TYPE_MODIFIED_ON) {
                 $modified_field = $field_name;
+            } elseif ($field_info['type'] === ModelAbstract::TYPE_JSON) {
+                $old_value = is_array($field_info['value']) ? json_encode($field_info['value']) : $field_info['value'];
+                $current_value = is_array($property_info['props'][$field_name]) ? json_encode($property_info['props'][$field_name]) : $property_info['props'][$field_name];
+                if ($current_value !== $old_value) {
+                    $modified_fields[$field_name] = $current_value;
+                }
             }
         }
 
