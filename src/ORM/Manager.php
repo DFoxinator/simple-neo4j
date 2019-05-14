@@ -96,22 +96,23 @@ class Manager {
 
         $props_info = $this->_getPropsInfo($props);
         $where_string = $props_info['where_string'];
+        $where_props = $props_info['where_props'];
 
         if ($limit === null && $order_by === null) {
             $query = "MATCH (n:$entity)
                       $where_string
                       RETURN COLLECT(n) as info";
 
-            $params = [];
+            $params = $where_props;
         } elseif ($limit !== null && $order_by === null) {
             $query = "MATCH (n:$entity)
                       WITH n
                       LIMIT {limit}
                       RETURN COLLECT(n) as info";
 
-            $params = [
+            $params = array_merge($where_props, [
                 'limit' => $limit,
-            ];
+            ]);
         } elseif ($order_by !== null && $limit === null) {
             $order_parts = self::getOrderParts($order_by, 'n.');
 
@@ -120,7 +121,7 @@ class Manager {
                       ORDER BY {$order_parts}
                       RETURN COLLECT(n) as info";
 
-            $params = [];
+            $params = $where_props;
         } else {
             $order_parts = self::getOrderParts($order_by, 'n.');
 
@@ -130,9 +131,9 @@ class Manager {
                       LIMIT {limit}
                       RETURN COLLECT(n) as info";
 
-            $params = [
+            $params = array_merge($where_props, [
                 'limit' => $limit,
-            ];
+            ]);
         }
 
         $result = $this->_neo4j_client->executeQuery($query, $params)->getSingleResult();
@@ -141,7 +142,7 @@ class Manager {
             throw new ObjectFetchException();
         }
 
-        $objects = $model_class::fromDataList($result[0]['info']);
+        $objects = $model_class::fromDataList($result[0]['info'], $this);
 
         return $objects;
     }
@@ -425,8 +426,20 @@ class Manager {
         ]);
     }
 
-    private function _getPropsInfo(array $props) : array {
+    private function _getPropsInfo(array $props) : array
+    {
+        $where_parts = [];
+        $where_props = [];
 
+        foreach ($props as $prop_name => $prop_value) {
+            $where_parts[] = 'n.' . $prop_name . '={n_' . $prop_name . '}';
+            $where_props['n_' . $prop_name] = $prop_value;
+        }
+
+        return [
+            'where_string' => $where_parts ? ('WHERE ' . implode(' AND ', $where_parts)) : '',
+            'where_props' => $where_props,
+        ];
     }
 
 }

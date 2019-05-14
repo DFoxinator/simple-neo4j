@@ -152,12 +152,12 @@ abstract class ModelAbstract {
         return static::IS_UNIQUE;
     }
 
-    public static function fromDataList(array $infos) : array
+    public static function fromDataList(array $infos, Manager $manager = null) : array
     {
         $objects = [];
 
         foreach ($infos as $info) {
-            $objects[] = new static($info);
+            $objects[] = new static($info, $manager);
         }
 
         return $objects;
