@@ -13,6 +13,7 @@ abstract class ModelAbstract {
     const PROP_INFO_ENTITY_TYPE = 'entity_type';
     const PROP_INFO_RELATED_DIRECTION = 'related_direction';
     const PROP_INFO_RELATED_DIRECTION_OUTGOING = 'outgoing';
+    const PROP_INFO_RELATED_DIRECTION_INCOMING = 'incoming';
     const PROP_INFO_OPTIONAL = 'optional';
 
     const TYPE_STRING = 'string';
