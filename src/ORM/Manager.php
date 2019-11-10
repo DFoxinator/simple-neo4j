@@ -285,7 +285,12 @@ class Manager {
                 $relationship_type = $relation_info['related_type'];
                 $other_node_type = $relation_info['entity_type'];
                 $other_node = new $other_node_type($relation_result['rel_node'], $this);
-                $relationship = new $relationship_type($node, $other_node, $relation_result['rel_rel']);
+
+                if ($relations_info[ModelAbstract::PROP_INFO_RELATED_DIRECTION] === ModelAbstract::PROP_INFO_RELATED_DIRECTION_OUTGOING) {
+                    $relationship = new $relationship_type($node, $other_node, $relation_result['rel_rel']);
+                } else {
+                    $relationship = new $relationship_type($other_node, $node, $relation_result['rel_rel']);
+                }
 
                 if (!isset($formatted_relations[$relation_result['rel_type']])) {
                     $formatted_relations[$relation_result['rel_type']] = [];
