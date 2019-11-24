@@ -18,6 +18,7 @@ abstract class ModelAbstract {
 
     const TYPE_STRING = 'string';
     const TYPE_INTEGER = 'integer';
+    const TYPE_BOOLEAN = 'boolean';
     const TYPE_AUTO_INCREMENT = 'auto_increment';
     const TYPE_CREATED_ON = 'created_on';
     const TYPE_MODIFIED_ON = 'modified_on';
