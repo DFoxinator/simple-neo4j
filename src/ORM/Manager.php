@@ -19,7 +19,7 @@ class Manager {
     {
         $entity = $model_class::ENTITY;
 
-        $query = "MATCH (n:$entity{{$key}:{id}})
+        $query = "MATCH (n:$entity{{$key}:\$id})
                   WITH n, ID(n) as neo4j_id
                   RETURN n{.*, neo4j_id} as info";
 
@@ -48,7 +48,7 @@ class Manager {
         } elseif ($limit !== null && $order_by === null) {
             $query = "MATCH (n:$entity)
                       WITH n
-                      LIMIT {limit}
+                      LIMIT \$limit
                       RETURN COLLECT(n) as info";
 
             $params = [
@@ -107,7 +107,7 @@ class Manager {
         } elseif ($limit !== null && $order_by === null) {
             $query = "MATCH (n:$entity)
                       WITH n
-                      LIMIT {limit}
+                      LIMIT \$limit
                       RETURN COLLECT(n) as info";
 
             $params = array_merge($where_props, [
@@ -128,7 +128,7 @@ class Manager {
             $query = "MATCH (n:$entity)
                       WITH n
                       ORDER BY {$order_parts}
-                      LIMIT {limit}
+                      LIMIT \$limit
                       RETURN COLLECT(n) as info";
 
             $params = array_merge($where_props, [
@@ -156,15 +156,15 @@ class Manager {
         // regular with auto increment
         $auto_increment_id_field = $property_info['extra'][ModelAbstract::TYPE_AUTO_INCREMENT];
         $query = "
-                 MERGE (n:SimpleNeo4jConfig{name:{config_name}})
-                 SET n.lock = {lock}
+                 MERGE (n:SimpleNeo4jConfig{name:\$config_name})
+                 SET n.lock = \$lock
                  WITH n
                  SET n.n = COALESCE(n.n, 0) + 1
                  REMOVE n.lock
                  WITH 
                     n.n as use_id
                  CREATE (n:$entity{{$auto_increment_id_field}:use_id})
-                 SET n += {props}
+                 SET n += \$props
                  WITH n, ID(n) as neo4j_id
                  RETURN n{.*, neo4j_id} as info
                  ";
@@ -209,10 +209,10 @@ class Manager {
         $to_type = $relationship->getEndNode()->getEntityType();
         if (isset($relationship_info['extra']['unique']) && $relationship_info['extra']['unique'] === true) {
             $query = "
-                     MATCH (n1:{$from_type}{{$n1_primary_field}:{n1_id}}), (n2:{$to_type}{{$n2_primary_field}:{n2_id}})
+                     MATCH (n1:{$from_type}{{$n1_primary_field}:\$n1_id}), (n2:{$to_type}{{$n2_primary_field}:\$n2_id})
                      WITH n1, n2
                      MERGE (n1)-[r:{$relationship_type}]->(n2)
-                     ON CREATE SET r = {rel_props}
+                     ON CREATE SET r = \$rel_props
                      WITH r, ID(r) as neo4j_id
                      RETURN r{.*, neo4j_id} as info
                   ";
@@ -224,11 +224,19 @@ class Manager {
             ]);
         } else {
             $query = "
-                     MATCH (n1:Person{id:{n1_id}}), (n2:Person{id:{n2_id}})
+                     MATCH (n1:{$from_type}{{$n1_primary_field}:\$n1_id}), (n2:{$to_type}{{$n2_primary_field}:\$n2_id})
                      WITH n1, n2
-                     CREATE (n1)-[r:REL]->(n2)
-                     SET r = {rel_props}
+                     CREATE (n1)-[r:{$relationship_type}]->(n2)
+                     SET r = \$rel_props
+                     WITH r, ID(r) as neo4j_id
+                     RETURN r{.*, neo4j_id} as info
                   ";
+
+            $result = $this->_neo4j_client->executeQuery($query, [
+                'n1_id' => $n1_id,
+                'n2_id' => $n2_id,
+                'rel_props' => $relationship_info['props'],
+            ]);
         }
 
         return $relationship->withProperties($result->getSingleResult()[0]['info']);
@@ -261,10 +269,10 @@ class Manager {
             }
 
             $query = '
-                  MATCH (n:' . $entity . '{' . $node_id_info['name'] . ':{id}})
+                  MATCH (n:' . $entity . '{' . $node_id_info['name'] . ':$id})
                   WITH n
                   MATCH (n)' . $left_arrow . '-[r:' . $relation_info['related_type']::ENTITY . ']-' . $right_arrow . '(other)
-                  RETURN other as rel_node, r as rel_rel, {rel_type} as rel_type';
+                  RETURN other as rel_node, r as rel_rel, $rel_type as rel_type';
 
             $params = [
                 'rel_type' => $relation_name,
@@ -319,9 +327,9 @@ class Manager {
 
         $key = $primary_id_info['name'];
 
-        $query = "MATCH (n:$entity{{$key}:{id}})
+        $query = "MATCH (n:$entity{{$key}:\$id})
                   WITH n
-                  SET n += {props}
+                  SET n += \$props
                   WITH n, ID(n) as neo4j_id
                   RETURN n{.*, neo4j_id} as info";
 
@@ -347,7 +355,7 @@ class Manager {
 
         $key = $primary_id_info['name'];
 
-        $query = "MATCH (n:$entity{{$key}:{id}})
+        $query = "MATCH (n:$entity{{$key}:\$id})
                   WITH n
                   DETACH DELETE n";
 
@@ -379,12 +387,12 @@ class Manager {
         $to_type = $relationship->getEndNode()->getEntityType();
 
         $query = "
-                 MATCH (n1:{$from_type}{{$n1_primary_field}:{n1_id}}), (n2:{$to_type}{{$n2_primary_field}:{n2_id}})
+                 MATCH (n1:{$from_type}{{$n1_primary_field}:\$n1_id}), (n2:{$to_type}{{$n2_primary_field}:\$n2_id})
                  WITH n1, n2
                  MATCH (n1)-[r:{$relationship_type}]->(n2)
-                 WHERE ID(r)={relationship_neo4j_id}
+                 WHERE ID(r)=\$relationship_neo4j_id
                  WITH r
-                 SET r += {props}
+                 SET r += \$props
                  WITH r, ID(r) as neo4j_id
                  RETURN r{.*, neo4j_id} as info
               ";
@@ -416,10 +424,10 @@ class Manager {
         $to_type = $relationship->getEndNode()->getEntityType();
 
         $query = "
-                 MATCH (n1:{$from_type}{{$n1_primary_field}:{n1_id}}), (n2:{$to_type}{{$n2_primary_field}:{n2_id}})
+                 MATCH (n1:{$from_type}{{$n1_primary_field}:\$n1_id}), (n2:{$to_type}{{$n2_primary_field}:\$n2_id})
                  WITH n1, n2
                  MATCH (n1)-[r:{$relationship_type}]->(n2)
-                 WHERE ID(r)={relationship_neo4j_id}
+                 WHERE ID(r)=\$relationship_neo4j_id
                  WITH r
                  DELETE r
               ";
