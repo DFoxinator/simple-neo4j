@@ -445,7 +445,7 @@ class Manager {
         $where_props = [];
 
         foreach ($props as $prop_name => $prop_value) {
-            $where_parts[] = 'n.' . $prop_name . '={n_' . $prop_name . '}';
+            $where_parts[] = 'n.' . $prop_name . '=$n_' . $prop_name;
             $where_props['n_' . $prop_name] = $prop_value;
         }
 
