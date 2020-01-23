@@ -74,6 +74,14 @@ class Client
         ];
     }
 
+    public function prependQueryToBatch(string $query, array $params)
+    {
+        array_unshift($this->_query_batch, [
+            'statement' => $query,
+            'parameters' => (object)$params,
+        ]);
+    }
+
     /**
      * @throws \SimpleNeo4j\HttpClient\Exception\CypherQueryException
      */
