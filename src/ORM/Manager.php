@@ -36,6 +36,34 @@ class Manager {
         return new $model_class($result[0]['info'], $this);
     }
 
+    public function fetchObjectsByKeys(string $model_class, string $key, array $ids) : array
+    {
+        $entity = $model_class::ENTITY;
+
+        $query = "MATCH (n:$entity)
+                  WHERE n.{$key} IN {ids}
+                  WITH n, ID(n) as neo4j_id
+                  RETURN COLLECT(n{.*, neo4j_id}) as info";
+
+        $params = ['ids' => $ids];
+
+        $result = $this->_neo4j_client->executeQuery($query, $params);
+
+        $result = $result->getSingleResult();
+
+        if (!isset($result[0]['info'])) {
+            return [];
+        }
+
+        $objects = [];
+
+        foreach ($result[0]['info'] as $info) {
+            $objects[] = new $model_class($info, $this);
+        }
+
+        return $objects;
+    }
+
     public function fetchObjectsByLabel(string $model_class, array $order_by = null, int $limit = null) : array
     {
         $entity = $model_class::ENTITY;
