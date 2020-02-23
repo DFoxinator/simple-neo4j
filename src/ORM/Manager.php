@@ -41,7 +41,7 @@ class Manager {
         $entity = $model_class::ENTITY;
 
         $query = "MATCH (n:$entity)
-                  WHERE n.{$key} IN {ids}
+                  WHERE n.{$key} IN \$ids
                   WITH n, ID(n) as neo4j_id
                   RETURN COLLECT(n{.*, neo4j_id}) as info";
 
