@@ -58,7 +58,7 @@ class Manager {
         $objects = [];
 
         foreach ($result[0]['info'] as $info) {
-            $objects[] = new $model_class($info, $this);
+            $objects[$info[$key]] = new $model_class($info, $this);
         }
 
         return $objects;
