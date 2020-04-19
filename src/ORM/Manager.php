@@ -287,7 +287,10 @@ class Manager {
 
         $relations_info = $node->getRelationsInfo($relation_types);
 
+        $formatted_relations = [];
+
         foreach ($relations_info as $relation_name => $relation_info) {
+            $formatted_relations[$relation_name] = [];
             if  ($relation_info[ModelAbstract::PROP_INFO_RELATED_DIRECTION] === ModelAbstract::PROP_INFO_RELATED_DIRECTION_OUTGOING) {
                 $left_arrow = '';
                 $right_arrow = '>';
@@ -311,8 +314,6 @@ class Manager {
         }
 
         $result = $this->_neo4j_client->executeBatchQueries()->getAllResults();
-
-        $formatted_relations = [];
 
         foreach ($result as $relation_results) {
             foreach ($relation_results as $relation_result) {
@@ -339,7 +340,7 @@ class Manager {
 
     }
 
-    public function saveNode(NodeModelAbstract $node) : NodeModelAbstract
+    public function saveNode(NodeModelAbstract $node) : ?NodeModelAbstract
     {
         $modified_properties = $node->getModifiedProperties();
 
