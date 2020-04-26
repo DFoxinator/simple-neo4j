@@ -10,6 +10,11 @@ class ResultSet
     private $_results = [];
 
     /**
+     * @var array
+     */
+    private $_stats = [];
+
+    /**
      * @var \SimpleNeo4j\HttpClient\Exception\CypherQueryException[]
      */
     private $_errors = [];
@@ -27,7 +32,7 @@ class ResultSet
             return;
         }
 
-        foreach ($data['results'] as $result_info) {
+        foreach ($data['results'] as $n => $result_info) {
             $use_result = [];
             foreach ($result_info['data'] as $row_data) {
                 $this_row = [];
@@ -36,6 +41,10 @@ class ResultSet
                 }
 
                 $use_result[] = $this_row;
+            }
+
+            if (isset($result_info['stats'])) {
+                $this->_stats[$n] = $result_info['stats'];
             }
 
             $this->_results[] = $use_result;
@@ -68,6 +77,12 @@ class ResultSet
     public function getFirstError() : ?Exception\CypherQueryException
     {
         return ($this->_errors[0] ?? null);
+    }
+
+    public function getAllStats() : array {
+
+        return $this->_stats;
+
     }
 
     public function getAllErrors() : array

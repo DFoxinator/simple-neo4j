@@ -66,20 +66,38 @@ class Client
         return $this->_config[self::CONFIG_PROTOCOL];
     }
 
-    public function addQueryToBatch(string $query, array $params = [])
+    public function getBatchCount() : int {
+
+        return count($this->_query_batch);
+
+    }
+
+    public function addQueryToBatch(string $query, array $params = [], bool $include_stats = false)
     {
-        $this->_query_batch[] = [
+        $params = [
             'statement' => $query,
             'parameters' => (object)$params,
         ];
+
+        if ($include_stats) {
+            $params['includeStats'] = true;
+        }
+
+        $this->_query_batch[] = $params;
     }
 
-    public function prependQueryToBatch(string $query, array $params)
+    public function prependQueryToBatch(string $query, array $params = [], bool $include_stats = false)
     {
-        array_unshift($this->_query_batch, [
+        $params = [
             'statement' => $query,
             'parameters' => (object)$params,
-        ]);
+        ];
+
+        if ($include_stats) {
+            $params['includeStats'] = true;
+        }
+
+        array_unshift($this->_query_batch, $params);
     }
 
     /**
@@ -105,12 +123,12 @@ class Client
         }
 
         return $result_list;
-        //print_r($result);exit;
+
     }
 
-    public function executeQuery(string $query, array $params = []) : ResultSet
+    public function executeQuery(string $query, array $params = [], bool $include_stats = false) : ResultSet
     {
-        $this->addQueryToBatch($query, $params);
+        $this->addQueryToBatch($query, $params, $include_stats);
 
         return $this->executeBatchQueries();
     }
