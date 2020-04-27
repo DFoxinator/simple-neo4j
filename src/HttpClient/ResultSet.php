@@ -89,4 +89,37 @@ class ResultSet
     {
         return $this->_errors;
     }
+
+    public function getStatFieldSum(string $field) : int {
+
+        $stats = $this->getAllStats();
+        $stats = array_column($stats, $field);
+
+        return array_sum($stats);
+
+    }
+
+    public function getNumNodesCreated() : int {
+
+        return $this->getStatFieldSum('nodes_created');
+
+    }
+
+    public function getNumNodesDeleted() : int {
+
+        return $this->getStatFieldSum('nodes_deleted');
+
+    }
+
+    public function getNumRelationshipsCreated() : int {
+
+        return $this->getStatFieldSum('relationships_created');
+
+    }
+
+    public function getNumRelationshipsDeleted() : int {
+
+        return $this->getStatFieldSum('relationships_deleted');
+
+    }
 }
