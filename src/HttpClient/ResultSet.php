@@ -119,7 +119,7 @@ class ResultSet
 
     public function getNumRelationshipsDeleted() : int {
 
-        return $this->getStatFieldSum('relationships_deleted');
+        return $this->getStatFieldSum('relationship_deleted');
 
     }
 }
