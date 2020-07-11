@@ -31,7 +31,11 @@ class Client
         self::CONFIG_CYPHER_RETRY_INTERVAL_MS => 200,
     ];
 
-    const RETRYABLE_CYPHER_ERROR_CODES = ['Neo.TransientError.Transaction.DeadlockDetected'];
+    const RETRYABLE_CYPHER_ERROR_CODES = [
+        'Neo.TransientError.Transaction.DeadlockDetected',
+        'Neo.TransientError.Transaction.LockAcquisitionTimeout',
+        'Neo.TransientError.Transaction.Outdated',
+    ];
 
     /**
      * @var \GuzzleHttp\Client
