@@ -36,6 +36,7 @@ class Client
         'Neo.TransientError.Transaction.LockAcquisitionTimeout',
         'Neo.TransientError.Transaction.Outdated',
         'Neo.DatabaseError.Transaction.TransactionCommitFailed',
+        'Neo.DatabaseError.Statement.ExecutionFailed',
     ];
 
     /**
