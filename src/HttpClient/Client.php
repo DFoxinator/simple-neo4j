@@ -10,6 +10,9 @@ class Client
     const CONFIG_PROTOCOL = 'protocol';
     const CONFIG_ERROR_MODE = 'error_mode';
     const CONFIG_NO_SSL_VERIFY = 'no_ssl_verify';
+    const CONFIG_SHOULD_RETRY_CYPHER_ERRORS = 'should_retry_cypher_errors';
+    const CONFIG_CYPHER_MAX_RETRIES = 'cypher_max_retries';
+    const CONFIG_CYPHER_RETRY_INTERVAL_MS = 'cypher_retry_interval_ms';
 
     const ERROR_MODE_HIDE_ERRORS = 'hide';
     const ERROR_MODE_THROW_ERRORS = 'throw';
@@ -23,7 +26,12 @@ class Client
         self::CONFIG_PROTOCOL => 'http',
         self::CONFIG_ERROR_MODE => self::ERROR_MODE_THROW_ERRORS,
         self::CONFIG_NO_SSL_VERIFY => false,
+        self::CONFIG_SHOULD_RETRY_CYPHER_ERRORS => true,
+        self::CONFIG_CYPHER_MAX_RETRIES => 8,
+        self::CONFIG_CYPHER_RETRY_INTERVAL_MS => 200,
     ];
+
+    const RETRYABLE_CYPHER_ERROR_CODES = ['Neo.TransientError.Transaction.DeadlockDetected'];
 
     /**
      * @var \GuzzleHttp\Client
@@ -64,6 +72,21 @@ class Client
     public function getProtocol() : string
     {
         return $this->_config[self::CONFIG_PROTOCOL];
+    }
+
+    public function getShouldRetryCypherErrors() : bool
+    {
+        return $this->_config[self::CONFIG_SHOULD_RETRY_CYPHER_ERRORS];
+    }
+
+    public function getCypherMaxRetries() : int
+    {
+        return $this->_config[self::CONFIG_CYPHER_MAX_RETRIES];
+    }
+
+    public function getCypherRetryIntervalMs() : int
+    {
+        return $this->_config[self::CONFIG_CYPHER_RETRY_INTERVAL_MS];
     }
 
     public function getBatchCount() : int {
@@ -115,11 +138,33 @@ class Client
 
         $this->_query_batch = [];
 
-        $result = $this->_sendNeo4jPostRequest( self::NEO4J_CYPHER_ENDPOINT, json_encode($send_params));
-        $result_list = new ResultSet($result);
+        $execute_batch = true;
 
-        if ($this->_config[self::CONFIG_ERROR_MODE] == self::ERROR_MODE_THROW_ERRORS && $result_list->hasError()) {
-            throw $result_list->getFirstError();
+        $num_times_retried = 0;
+
+        while ($execute_batch) {
+            $result = $this->_sendNeo4jPostRequest(self::NEO4J_CYPHER_ENDPOINT, json_encode($send_params));
+            $result_list = new ResultSet($result);
+
+            if ($result_list->hasError()) {
+                $first_error = $result_list->getFirstError();
+
+                if ($this->getShouldRetryCypherErrors()) {
+                    if (in_array($first_error->getCypherErrorCode(), self::RETRYABLE_CYPHER_ERROR_CODES) && $num_times_retried < $this->getCypherMaxRetries()) {
+                        ++$num_times_retried;
+                        usleep($this->getCypherRetryIntervalMs() * 1000);
+                        continue;
+                    }
+                }
+
+                $execute_batch = false;
+
+                if ($this->_config[self::CONFIG_ERROR_MODE] == self::ERROR_MODE_THROW_ERRORS) {
+                    throw $first_error;
+                }
+            } else {
+                $execute_batch = false;
+            }
         }
 
         return $result_list;
