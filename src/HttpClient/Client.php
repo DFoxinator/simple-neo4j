@@ -12,7 +12,7 @@ class Client
     const CONFIG_NO_SSL_VERIFY = 'no_ssl_verify';
     const CONFIG_SHOULD_RETRY_CYPHER_ERRORS = 'should_retry_cypher_errors';
     const CONFIG_CYPHER_MAX_RETRIES = 'cypher_max_retries';
-    const CONFIG_CYPHER_RETRY_INTERVAL_MS = 'cypher_retry_interval_ms';
+    const CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS = 'cypher_retry_max_interval_ms';
 
     const ERROR_MODE_HIDE_ERRORS = 'hide';
     const ERROR_MODE_THROW_ERRORS = 'throw';
@@ -27,8 +27,8 @@ class Client
         self::CONFIG_ERROR_MODE => self::ERROR_MODE_THROW_ERRORS,
         self::CONFIG_NO_SSL_VERIFY => false,
         self::CONFIG_SHOULD_RETRY_CYPHER_ERRORS => true,
-        self::CONFIG_CYPHER_MAX_RETRIES => 8,
-        self::CONFIG_CYPHER_RETRY_INTERVAL_MS => 200,
+        self::CONFIG_CYPHER_MAX_RETRIES => 40,
+        self::CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS => 50,
     ];
 
     const RETRYABLE_CYPHER_ERROR_CODES = [
@@ -92,7 +92,7 @@ class Client
 
     public function getCypherRetryIntervalMs() : int
     {
-        return $this->_config[self::CONFIG_CYPHER_RETRY_INTERVAL_MS];
+        return $this->_config[self::CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS];
     }
 
     public function getBatchCount() : int {
@@ -158,7 +158,7 @@ class Client
                 if ($this->getShouldRetryCypherErrors()) {
                     if (in_array($first_error->getCypherErrorCode(), self::RETRYABLE_CYPHER_ERROR_CODES) && $num_times_retried < $this->getCypherMaxRetries()) {
                         ++$num_times_retried;
-                        usleep($this->getCypherRetryIntervalMs() * 1000);
+                        usleep(mt_rand(1, $this->getCypherRetryIntervalMs()) * 1000);
                         continue;
                     }
                 }
