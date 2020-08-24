@@ -184,6 +184,13 @@ class Client
         return $this->executeBatchQueries();
     }
 
+    public function callService(string $service, string $body = '') : array
+    {
+
+        return $this->_sendNeo4jPostRequest($service, $body);
+
+    }
+
     private function _setConfigFromOptions(array $config = [])
     {
         $this->_config = array_merge(self::DEFAULT_CONFIG, $config);
