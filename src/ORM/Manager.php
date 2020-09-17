@@ -50,7 +50,7 @@ class Manager {
 
         $params = ['ids' => $ids];
 
-        $result = $$this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params);
+        $result = $this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params);
 
         $result = $result->getSingleResult();
 
