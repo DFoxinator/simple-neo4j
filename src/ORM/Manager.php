@@ -8,14 +8,17 @@ use SimpleNeo4j\ORM\Exception\ObjectFetchException;
 
 class Manager {
 
-    private $_neo4j_client;
+    private HttpClient\Client $_neo4j_client;
+    private HttpClient\Client $_neo4j_read_client;
+    private bool $_forced_leader = false;
 
-    public function __construct(HttpClient\Client $neo4j_client)
+    public function __construct(HttpClient\Client $neo4j_client, HttpClient\Client $neo4j_read_client = null)
     {
         $this->_neo4j_client = $neo4j_client;
+        $this->_neo4j_read_client = $neo4j_read_client ?? $neo4j_client;
     }
 
-    public function fetchObjectByKey(string $model_class, string $key, $id) : ?ModelAbstract
+    public function fetchObjectByKey(string $model_class, string $key, $id, bool $force_leader = false) : ?ModelAbstract
     {
         $entity = $model_class::ENTITY;
 
@@ -25,7 +28,7 @@ class Manager {
 
         $params = ['id' => $id];
 
-        $result = $this->_neo4j_client->executeQuery($query, $params);
+        $result = $this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params);
 
         $result = $result->getSingleResult();
 
@@ -36,7 +39,7 @@ class Manager {
         return new $model_class($result[0]['info'], $this);
     }
 
-    public function fetchObjectsByKeys(string $model_class, string $key, array $ids) : array
+    public function fetchObjectsByKeys(string $model_class, string $key, array $ids, bool $force_leader = false) : array
     {
         $entity = $model_class::ENTITY;
 
@@ -47,7 +50,7 @@ class Manager {
 
         $params = ['ids' => $ids];
 
-        $result = $this->_neo4j_client->executeQuery($query, $params);
+        $result = $$this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params);
 
         $result = $result->getSingleResult();
 
@@ -64,7 +67,7 @@ class Manager {
         return $objects;
     }
 
-    public function fetchObjectsByLabel(string $model_class, array $order_by = null, int $limit = null) : array
+    public function fetchObjectsByLabel(string $model_class, array $order_by = null, int $limit = null, bool $force_leader = false) : array
     {
         $entity = $model_class::ENTITY;
 
@@ -105,7 +108,7 @@ class Manager {
             ];
         }
 
-        $result = $this->_neo4j_client->executeQuery($query, $params)->getSingleResult();
+        $result = $this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params)->getSingleResult();
 
         if (!isset($result[0]['info']) || !is_array($result[0]['info'])) {
             throw new ObjectFetchException();
@@ -118,7 +121,7 @@ class Manager {
         //print_r($result);exit;
     }
 
-    public function fetchObjectsByLabelAndProps(string $model_class, array $props, array $order_by = null, int $limit = null) : array
+    public function fetchObjectsByLabelAndProps(string $model_class, array $props, array $order_by = null, int $limit = null, bool $force_leader = false) : array
     {
         $entity = $model_class::ENTITY;
 
@@ -164,7 +167,7 @@ class Manager {
             ]);
         }
 
-        $result = $this->_neo4j_client->executeQuery($query, $params)->getSingleResult();
+        $result = $this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params)->getSingleResult();
 
         if (!isset($result[0]['info']) || !is_array($result[0]['info'])) {
             throw new ObjectFetchException();
@@ -289,6 +292,8 @@ class Manager {
 
         $formatted_relations = [];
 
+        $neo4j_client = $this->_getNeo4jReadClient($this->_forced_leader);
+
         foreach ($relations_info as $relation_name => $relation_info) {
             $formatted_relations[$relation_name] = [];
             if  ($relation_info[ModelAbstract::PROP_INFO_RELATED_DIRECTION] === ModelAbstract::PROP_INFO_RELATED_DIRECTION_OUTGOING) {
@@ -310,10 +315,10 @@ class Manager {
                 'id' => $node_id_info['value'],
             ];
 
-            $this->_neo4j_client->addQueryToBatch($query, $params);
+            $neo4j_client->addQueryToBatch($query, $params);
         }
 
-        $result = $this->_neo4j_client->executeBatchQueries()->getAllResults();
+        $result = $neo4j_client->executeBatchQueries()->getAllResults();
 
         foreach ($result as $relation_results) {
             foreach ($relation_results as $relation_result) {
@@ -482,6 +487,14 @@ class Manager {
             'where_string' => $where_parts ? ('WHERE ' . implode(' AND ', $where_parts)) : '',
             'where_props' => $where_props,
         ];
+    }
+
+    private function _getNeo4jReadClient(bool $force_leader) : HttpClient\Client {
+
+        $this->_forced_leader = $force_leader;
+
+        return $force_leader ? $this->_neo4j_client : $this->_neo4j_read_client;
+
     }
 
 }
