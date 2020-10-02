@@ -2,6 +2,8 @@
 
 namespace SimpleNeo4j\HttpClient;
 
+use GuzzleHttp\Exception\RequestException;
+
 class Client
 {
     const CONFIG_HOST = 'host';
@@ -13,6 +15,8 @@ class Client
     const CONFIG_SHOULD_RETRY_CYPHER_ERRORS = 'should_retry_cypher_errors';
     const CONFIG_CYPHER_MAX_RETRIES = 'cypher_max_retries';
     const CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS = 'cypher_retry_max_interval_ms';
+    const CONFIG_REQUEST_MAX_RETRIES = 'request_max_retries';
+    const CONFIG_REQUEST_RETRY_INTERVAL_MS = 'request_retry_interval_ms';
 
     const ERROR_MODE_HIDE_ERRORS = 'hide';
     const ERROR_MODE_THROW_ERRORS = 'throw';
@@ -29,6 +33,8 @@ class Client
         self::CONFIG_SHOULD_RETRY_CYPHER_ERRORS => true,
         self::CONFIG_CYPHER_MAX_RETRIES => 40,
         self::CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS => 50,
+        self::CONFIG_REQUEST_MAX_RETRIES => 0,
+        self::CONFIG_REQUEST_RETRY_INTERVAL_MS => 300,
     ];
 
     const RETRYABLE_CYPHER_ERROR_CODES = [
@@ -238,13 +244,22 @@ class Client
             $post_options['verify'] = !$this->_config[self::CONFIG_NO_SSL_VERIFY];
         }
 
-        try {
-            $result = $this->_http_client->post($uri, $post_options);
-            $result = json_decode($result->getBody()->getContents(), true);
+        $retries_remaining = $this->_config[self::CONFIG_REQUEST_MAX_RETRIES];
+        $min_retry_time_ms = $this->_config[self::CONFIG_REQUEST_RETRY_INTERVAL_MS];
 
-            return $result;
-        } catch (\GuzzleHttp\Exception\ConnectException $exception) {
-            throw new Exception\ConnectionException();
-        }
+        do {
+            try {
+                $result = $this->_http_client->post($uri, $post_options);
+                $result = json_decode($result->getBody()->getContents(), true);
+
+                return $result;
+            } catch (\GuzzleHttp\Exception\ConnectException|RequestException $exception) {
+                if ($retries_remaining === 0 || ($exception instanceof RequestException && $exception->getCode() != 503)) {
+                    throw new Exception\ConnectionException();
+                }
+
+                usleep($min_retry_time_ms * 1000);
+            }
+        } while ($retries_remaining-- > 0);
     }
 }
