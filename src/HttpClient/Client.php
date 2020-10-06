@@ -190,7 +190,7 @@ class Client
         return $this->executeBatchQueries();
     }
 
-    public function callService(string $service, string $body = '') : array
+    public function callService(string $service, string $body = '') : ?array
     {
 
         return $this->_sendNeo4jPostRequest($service, $body);
@@ -231,7 +231,7 @@ class Client
     /**
      * @throws \SimpleNeo4j\HttpClient\Exception\ConnectionException
      */
-    private function _sendNeo4jPostRequest( string $endpoint, string $body ) : array
+    private function _sendNeo4jPostRequest( string $endpoint, string $body ) : ?array
     {
         $uri = $this->_getNeo4jUrl() . '/' . $endpoint;
 
