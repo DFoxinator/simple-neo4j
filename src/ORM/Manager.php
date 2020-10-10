@@ -369,7 +369,16 @@ class Manager {
 
         $params = ['id' => $primary_id_info['value'], 'props' => $modified_properties];
 
-        $result = $this->_neo4j_client->executeQuery($query, $params);
+
+        try {
+            $result = $this->_neo4j_client->executeQuery($query, $params);
+        } catch (HttpClient\Exception\CypherQueryException $e) {
+            if ($e->isConstraintViolation()) {
+                throw new ConstraintViolationException();
+            }
+
+            throw $e;
+        }
 
         $result = $result->getSingleResult();
 
