@@ -7,6 +7,7 @@ use GuzzleHttp\Exception\RequestException;
 class Client
 {
     const CONFIG_HOST = 'host';
+    const CONFIG_DATABASE = 'database';
     const CONFIG_PORT = 'port';
     const CONFIG_SECURE = 'secure';
     const CONFIG_PROTOCOL = 'protocol';
@@ -22,9 +23,11 @@ class Client
     const ERROR_MODE_THROW_ERRORS = 'throw';
 
     const NEO4J_CYPHER_ENDPOINT = 'db/data/transaction/commit';
+    const NEO4J_CYPHER_ENDPOINT_WITH_DATABASE = 'db/%s/tx/commit';
 
     const DEFAULT_CONFIG = [
         self::CONFIG_HOST => 'localhost',
+        self::CONFIG_DATABASE => null,
         self::CONFIG_PORT => 7474,
         self::CONFIG_SECURE => false,
         self::CONFIG_PROTOCOL => 'http',
@@ -107,6 +110,16 @@ class Client
 
     }
 
+    public function getCypherEndpoint() : string {
+
+        if ($this->_config[self::CONFIG_DATABASE] !== null) {
+            return sprintf(self::NEO4J_CYPHER_ENDPOINT_WITH_DATABASE, $this->_config[self::CONFIG_DATABASE]);
+        }
+
+        return self::NEO4J_CYPHER_ENDPOINT;
+
+    }
+
     public function addQueryToBatch(string $query, array $params = [], bool $include_stats = false)
     {
         $params = [
@@ -155,7 +168,7 @@ class Client
         $num_times_retried = 0;
 
         while ($execute_batch) {
-            $result = $this->_sendNeo4jPostRequest(self::NEO4J_CYPHER_ENDPOINT, json_encode($send_params));
+            $result = $this->_sendNeo4jPostRequest($this->getCypherEndpoint(), json_encode($send_params));
             $result_list = new ResultSet($result);
 
             if ($result_list->hasError()) {
