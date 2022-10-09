@@ -184,27 +184,42 @@ class Manager {
 
         $property_info = $object->getPropertyInfo();
 
-        // regular with auto increment
-        $auto_increment_id_field = $property_info['extra'][ModelAbstract::TYPE_AUTO_INCREMENT];
-        $query = "
-                 MERGE (n:SimpleNeo4jConfig{name:\$config_name})
-                 SET n.lock = \$lock
-                 WITH n
-                 SET n.n = COALESCE(n.n, 0) + 1
-                 REMOVE n.lock
-                 WITH 
-                    n.n as use_id
-                 CREATE (n:$entity{{$auto_increment_id_field}:use_id})
-                 SET n += \$props
-                 WITH n, ID(n) as neo4j_id
-                 RETURN n{.*, neo4j_id} as info
-                 ";
+        if (isset($property_info['extra'][ModelAbstract::TYPE_AUTO_INCREMENT])) {
+            // regular with auto increment
+            $auto_increment_id_field = $property_info['extra'][ModelAbstract::TYPE_AUTO_INCREMENT];
+            $query = "
+                     MERGE (n:SimpleNeo4jConfig{name:\$config_name})
+                     SET n.lock = \$lock
+                     WITH n
+                     SET n.n = COALESCE(n.n, 0) + 1
+                     REMOVE n.lock
+                     WITH 
+                        n.n as use_id
+                     CREATE (n:$entity{{$auto_increment_id_field}:use_id})
+                     SET n += \$props
+                     WITH n, ID(n) as neo4j_id
+                     RETURN n{.*, neo4j_id} as info
+                     ";
 
-        $params = [
-            'config_name' => 'ai_' . $entity,
-            'lock' => 1,
-            'props' => $property_info['props'],
-        ];
+            $params = [
+                'config_name' => 'ai_' . $entity,
+                'lock' => 1,
+                'props' => $property_info['props'],
+            ];
+        } else {
+            $primary_field =  $property_info['extra'][ModelAbstract::TYPE_AUTO_INCREMENT];
+            $query = "
+                     CREATE (n:$entity{{$primary_field}:\$use_id})
+                     SET n += \$props
+                     WITH n, ID(n) as neo4j_id
+                     RETURN n{.*, neo4j_id} as info
+                     ";
+
+            $params = [
+                'props' => $property_info['props'],
+                'use_id' => $property_info['props'][$primary_field],
+            ];
+        }
 
         try {
             $result = $this->_neo4j_client->executeQuery($query, $params);
