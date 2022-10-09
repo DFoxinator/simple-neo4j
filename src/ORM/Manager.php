@@ -207,7 +207,8 @@ class Manager {
                 'props' => $property_info['props'],
             ];
         } else {
-            $primary_field =  $property_info['extra'][ModelAbstract::TYPE_AUTO_INCREMENT];
+            $primary_field =  $property_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
+
             $query = "
                      CREATE (n:$entity{{$primary_field}:\$use_id})
                      SET n += \$props
