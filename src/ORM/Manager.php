@@ -323,7 +323,7 @@ class Manager {
             $query = '
                   MATCH (n:' . $entity . '{' . $node_id_info['name'] . ':$id})
                   WITH n
-                  MATCH (n)' . $left_arrow . '-[r:' . $relation_info['related_type']::ENTITY . ']-' . $right_arrow . '(other)
+                  MATCH (n)' . $left_arrow . '-[r:' . $relation_info['related_type']::ENTITY . ']-' . $right_arrow . '(other:' . $relation_info['entity_type']::ENTITY . ')
                   RETURN other as rel_node, r as rel_rel, $rel_type as rel_type';
 
             $params = [
