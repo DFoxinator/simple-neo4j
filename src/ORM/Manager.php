@@ -324,7 +324,9 @@ class Manager {
                   MATCH (n:' . $entity . '{' . $node_id_info['name'] . ':$id})
                   WITH n
                   MATCH (n)' . $left_arrow . '-[r:' . $relation_info['related_type']::ENTITY . ']-' . $right_arrow . '(other:' . $relation_info['entity_type']::ENTITY . ')
-                  RETURN other as rel_node, r as rel_rel, $rel_type as rel_type';
+                  WITH other as rel_node, r, $rel_type as rel_type, ID(r) as neo4j_id
+                  RETURN rel_node, r{.*, neo4j_id} as rel_rel, rel_type
+                  ';
 
             $params = [
                 'rel_type' => $relation_name,
