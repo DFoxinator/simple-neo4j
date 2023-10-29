@@ -12,6 +12,7 @@ use Laudis\Neo4j\Databags\SslConfiguration;
 use Laudis\Neo4j\Databags\SummarizedResult;
 use Laudis\Neo4j\Enum\SslMode;
 use Laudis\Neo4j\Exception\Neo4jException;
+use LogicException;
 use SimpleNeo4j\HttpClient\Exception\ConnectionException;
 use SimpleNeo4j\HttpClient\Exception\CypherQueryException;
 use Throwable;
@@ -62,12 +63,12 @@ class Client
     /**
      * @var array
      */
-    private $_config;
+    private array $_config;
 
     /**
      * @var array
      */
-    private $_query_batch = [];
+    private array $_query_batch = [];
 
     public function __construct(array $config = [], DriverInterface $driver = null)
     {
@@ -138,16 +139,12 @@ class Client
         return count($this->_query_batch);
     }
 
-    public function addQueryToBatch(string $query, array $params = [], bool $include_stats = false): void
+    public function addQueryToBatch(string $query, array $params = []): void
     {
         $params = [
             'statement' => $query,
             'parameters' => (object)$params,
         ];
-
-        if ($include_stats) {
-            $params['includeStats'] = true;
-        }
 
         $this->_query_batch[] = $params;
     }
@@ -167,7 +164,7 @@ class Client
     }
 
     /**
-     * @throws CypherQueryException
+     * @throws CypherQueryException|ConnectionException|Throwable
      */
     public function executeBatchQueries(): ResultSet
     {
@@ -175,43 +172,41 @@ class Client
             return new ResultSet();
         }
 
-        $send_params = [
-            'statements' => $this->_query_batch
-        ];
-
         $this->_query_batch = [];
 
-        $execute_batch = true;
-
         $num_times_retried = 0;
+        $results = [];
+        $first_error = null;
 
-        while ($execute_batch) {
-            $result = $this->_sendNeo4jPostRequest($this->getCypherEndpoint(), json_encode($send_params));
-            $result_list = new ResultSet($result);
+        while ($this->getBatchCount() > 0) {
+            $query = array_pop($this->_query_batch);
 
-            if ($result_list->hasError()) {
-                $first_error = $result_list->getFirstError();
+            do {
+                $retry = false;
+                $result = $this->runStatement($query['statement'], $query['parameters']);
 
-                if ($this->getShouldRetryCypherErrors()) {
-                    if (in_array($first_error->getCypherErrorCode(), self::RETRYABLE_CYPHER_ERROR_CODES) && $num_times_retried < $this->getCypherMaxRetries()) {
-                        ++$num_times_retried;
-                        usleep(mt_rand(1, $this->getCypherRetryIntervalMs()) * 1000);
-                        continue;
+                if ($result instanceof CypherQueryException) {
+                    $first_error ??= $result;
+                    if ($this->getShouldRetryCypherErrors()) {
+                        if (in_array($result->getCypherErrorCode(), self::RETRYABLE_CYPHER_ERROR_CODES) && $num_times_retried < $this->getCypherMaxRetries()) {
+                            ++$num_times_retried;
+                            usleep(mt_rand(1, $this->getCypherRetryIntervalMs()) * 1000);
+                            $retry = true;
+                        }
                     }
                 }
+            } while ($retry);
 
-                $execute_batch = false;
-
-                if ($this->_config[self::CONFIG_ERROR_MODE] == self::ERROR_MODE_THROW_ERRORS) {
-                    throw $first_error;
-                }
-            } else {
-                $execute_batch = false;
-            }
+            $results[] = $result;
         }
 
-        return $result_list;
+        // For backwards compatibility we will continue the batch even if there is an error and only throw the first
+        // error once the batch is finished.
+        if ($this->_config[self::CONFIG_ERROR_MODE] === self::ERROR_MODE_THROW_ERRORS) {
+            throw $first_error;
+        }
 
+        return new ResultSet($results);
     }
 
     public function executeQuery(string $query, array $params = [], bool $include_stats = false): ResultSet
@@ -223,9 +218,7 @@ class Client
 
     public function callService(string $service, string $body = ''): ?array
     {
-
-        return $this->_sendNeo4jPostRequest($service, $body);
-
+        return $this->runStatement($service, $body);
     }
 
     private function _setConfigFromOptions(array $config = []): void
@@ -244,7 +237,7 @@ class Client
     /**
      * @throws ConnectionException|Throwable
      */
-    private function _sendNeo4jPostRequest(string $statement, array $parameters, bool $includeStats): SummarizedResult|CypherQueryException
+    private function runStatement(string $statement, array $parameters): SummarizedResult|CypherQueryException
     {
         $retries_remaining = $this->_config[self::CONFIG_REQUEST_MAX_RETRIES];
         $min_retry_time_ms = $this->_config[self::CONFIG_REQUEST_RETRY_INTERVAL_MS];
@@ -273,5 +266,8 @@ class Client
                 }
             }
         } while ($retries_remaining-- > 0);
+
+        // this piece of code is not logically reachable, but we need to satisfy the static analysis.
+        throw new LogicException('Could not handle exception in retry logic');
     }
 }
