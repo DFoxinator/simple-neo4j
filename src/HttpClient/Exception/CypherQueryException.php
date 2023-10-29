@@ -4,15 +4,9 @@ namespace SimpleNeo4j\HttpClient\Exception;
 
 class CypherQueryException extends SimpleNeo4jException
 {
-    /**
-     * @var mixed
-     */
-    private $_cypher_error_code;
+    private string|null $_cypher_error_code;
 
-    /**
-     * @param mixed $error_code
-     */
-    public function setCypherErrorCode($error_code)
+    public function setCypherErrorCode(string|null $error_code): void
     {
         $this->_cypher_error_code = $error_code;
     }
