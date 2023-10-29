@@ -3,6 +3,7 @@
 namespace SimpleNeo4j\HttpClient;
 
 use GuzzleHttp\Exception\RequestException;
+use Laudis\Neo4j\Authentication\Authenticate;
 use Laudis\Neo4j\Basic\Driver;
 use Laudis\Neo4j\Contracts\DriverInterface;
 use Laudis\Neo4j\Databags\DriverConfiguration;
@@ -79,14 +80,15 @@ class Client
 
         $this->driver = $driver ?? Driver::create(
             uri: sprintf(
-                '%s://%s:%s@%s:%s',
-                $config[self::CONFIG_PROTOCOL],
-                $config['username'],
-                $config['password'],
-                $config['host'],
-                $config['port'] ?? 7687
+                '%s://%s:%s',
+                $this->_config[self::CONFIG_PROTOCOL],
+                $this->_config['host'],
+                $this->_config['port']
             ),
-            configuration: $driverConfig->withSslConfiguration($ssl)
+            configuration: $driverConfig->withSslConfiguration($ssl),
+            authenticate: ($config['username'] ?? false) && ($config['password'] ?? false) ?
+                Authenticate::basic($config['username'], $config['password']) :
+                Authenticate::disabled()
         );
     }
 
@@ -233,28 +235,10 @@ class Client
         }
     }
 
-    private function _getNeo4jUrl(): string
-    {
-        return $this->getProtocol() . '://' . $this->getHost() . ':' . $this->getPort();
-    }
-
-    private function _getRequestHeaders(): array
-    {
-        $headers = [
-            'Content-type' => 'application/json',
-        ];
-
-        if (array_key_exists('username', $this->_config)) {
-            $headers['Authorization'] = 'Basic ' . base64_encode($this->_config['username'] . ':' . $this->_config['password']);
-        }
-
-        return $headers;
-    }
-
     /**
      * @throws \SimpleNeo4j\HttpClient\Exception\ConnectionException
      */
-    private function _sendNeo4jPostRequest(string $endpoint, string $body): ?array
+    private function _sendNeo4jPostRequest(string $statement, array $parameters, bool $includeStats): ?array
     {
         $uri = $this->_getNeo4jUrl() . '/' . $endpoint;
 
