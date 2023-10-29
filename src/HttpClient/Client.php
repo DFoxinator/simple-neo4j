@@ -34,13 +34,15 @@ class Client
 
     const ERROR_MODE_HIDE_ERRORS = 'hide';
     const ERROR_MODE_THROW_ERRORS = 'throw';
+    const CONFIG_PASSWORD = 'password';
+    const CONFIG_USERNAME = 'username';
 
     const DEFAULT_CONFIG = [
         self::CONFIG_HOST => 'localhost',
         self::CONFIG_DATABASE => null,
-        self::CONFIG_PORT => 7474,
+        self::CONFIG_PORT => null,
         self::CONFIG_SECURE => false,
-        self::CONFIG_PROTOCOL => 'http',
+        self::CONFIG_PROTOCOL => 'neo4j',
         self::CONFIG_ERROR_MODE => self::ERROR_MODE_THROW_ERRORS,
         self::CONFIG_NO_SSL_VERIFY => false,
         self::CONFIG_SHOULD_RETRY_CYPHER_ERRORS => true,
@@ -48,6 +50,8 @@ class Client
         self::CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS => 50,
         self::CONFIG_REQUEST_MAX_RETRIES => 0,
         self::CONFIG_REQUEST_RETRY_INTERVAL_MS => 300,
+        self::CONFIG_USERNAME => null,
+        self::CONFIG_PASSWORD => null,
     ];
 
     const RETRYABLE_CYPHER_ERROR_CODES = [
@@ -58,21 +62,56 @@ class Client
         'Neo.DatabaseError.Statement.ExecutionFailed',
     ];
 
+    /** @var DriverInterface<SummarizedResult> */
     private DriverInterface $driver;
 
     /**
-     * @var array
+     * @var array{
+     *     host: string,
+     *     database: string|null,
+     *     port: int|null,
+     *     secure: bool,
+     *     protocol: string,
+     *     error_mode: 'throw'|'hide',
+     *     no_ssl_verify: bool,
+     *     should_retry_cypher_errors: bool,
+     *     cypher_max_retries: int,
+     *     cypher_retry_max_interval_ms: int,
+     *     request_max_retries: int,
+     *     request_retry_interval_ms: int,
+     *     username: string|null,
+     *     password: string|null
+     * }
      */
     private array $_config;
 
     /**
-     * @var array
+     * @var list<array{statement: string, parameters: array<string, mixed>}>
      */
     private array $_query_batch = [];
 
+    /**
+     * @param array{
+     *      host ?: string,
+     *      database ?: string|null,
+     *      port ?: int|null,
+     *      secure ?: bool,
+     *      protocol ?: string,
+     *      error_mode ?: 'hide'|'throw',
+     *      no_ssl_verify ?: bool,
+     *      should_retry_cypher_errors ?: bool,
+     *      cypher_max_retries ?: int,
+     *      cypher_retry_max_interval_ms ?: int,
+     *      request_max_retries ?: int,
+     *      request_retry_interval_ms ?: int,
+     *      username ?: string,
+     *      password ?: string
+     *  } $config
+     * @param DriverInterface<SummarizedResult>|null $driver
+     */
     public function __construct(array $config = [], DriverInterface $driver = null)
     {
-        $this->_setConfigFromOptions($config);
+        $this->_config = array_merge(self::DEFAULT_CONFIG, $config);
 
         $driverConfig = DriverConfiguration::default();
         $ssl = SslConfiguration::default();
@@ -85,16 +124,17 @@ class Client
             }
         }
 
+        /** @psalm-var DriverInterface<SummarizedResult> */
         $this->driver = $driver ?? Driver::create(
             uri: sprintf(
-                '%s://%s:%s',
+                '%s://%s%s',
                 $this->_config[self::CONFIG_PROTOCOL],
-                $this->_config['host'],
-                $this->_config['port']
+                $this->_config[self::CONFIG_HOST],
+                $this->_config[self::CONFIG_PORT] ? ':' . $this->_config[self::CONFIG_PORT] : '',
             ),
             configuration: $driverConfig->withSslConfiguration($ssl),
-            authenticate: ($config['username'] ?? false) && ($config['password'] ?? false) ?
-                Authenticate::basic($config['username'], $config['password']) :
+            authenticate: $this->_config[self::CONFIG_USERNAME] && $this->_config[self::CONFIG_PASSWORD] ?
+                Authenticate::basic($this->_config[self::CONFIG_USERNAME], $this->_config[self::CONFIG_PASSWORD]) :
                 Authenticate::disabled()
         );
     }
@@ -104,7 +144,7 @@ class Client
         return $this->_config[self::CONFIG_HOST];
     }
 
-    public function getPort(): int
+    public function getPort(): int|null
     {
         return $this->_config[self::CONFIG_PORT];
     }
@@ -139,28 +179,20 @@ class Client
         return count($this->_query_batch);
     }
 
-    public function addQueryToBatch(string $query, array $params = []): void
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    public function addQueryToBatch(string $statement, array $parameters = []): void
     {
-        $params = [
-            'statement' => $query,
-            'parameters' => (object)$params,
-        ];
-
-        $this->_query_batch[] = $params;
+        $this->_query_batch[] = compact('statement', 'parameters');
     }
 
-    public function prependQueryToBatch(string $query, array $params = [], bool $include_stats = false): void
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    public function prependQueryToBatch(string $statement, array $parameters = []): void
     {
-        $params = [
-            'statement' => $query,
-            'parameters' => (object)$params,
-        ];
-
-        if ($include_stats) {
-            $params['includeStats'] = true;
-        }
-
-        array_unshift($this->_query_batch, $params);
+        array_unshift($this->_query_batch, compact('statement', 'parameters'));
     }
 
     /**
@@ -172,15 +204,10 @@ class Client
             return new ResultSet();
         }
 
-        $this->_query_batch = [];
-
         $num_times_retried = 0;
         $results = [];
         $first_error = null;
-
-        while ($this->getBatchCount() > 0) {
-            $query = array_pop($this->_query_batch);
-
+        foreach ($this->_query_batch as $query) {
             do {
                 $retry = false;
                 $result = $this->runStatement($query['statement'], $query['parameters']);
@@ -202,39 +229,30 @@ class Client
 
         // For backwards compatibility we will continue the batch even if there is an error and only throw the first
         // error once the batch is finished.
-        if ($this->_config[self::CONFIG_ERROR_MODE] === self::ERROR_MODE_THROW_ERRORS) {
+        if ($first_error && $this->_config[self::CONFIG_ERROR_MODE] === self::ERROR_MODE_THROW_ERRORS) {
             throw $first_error;
         }
 
         return new ResultSet($results);
     }
 
-    public function executeQuery(string $query, array $params = [], bool $include_stats = false): ResultSet
+    /**
+     * @param array<string, mixed> $params
+     *
+     * @throws ConnectionException
+     * @throws CypherQueryException
+     * @throws Throwable
+     */
+    public function executeQuery(string $query, array $params = []): ResultSet
     {
-        $this->addQueryToBatch($query, $params, $include_stats);
+        $this->addQueryToBatch($query, $params);
 
         return $this->executeBatchQueries();
     }
 
-    public function callService(string $service, string $body = ''): ?array
-    {
-        return $this->runStatement($service, $body);
-    }
-
-    private function _setConfigFromOptions(array $config = []): void
-    {
-        $this->_config = array_merge(self::DEFAULT_CONFIG, $config);
-
-        if (!isset($config['port']) && isset($config['secure'])) {
-            $this->_config['port'] = $config['secure'] ? 7473 : 7474;
-        }
-
-        if (!isset($config['protocol']) && $this->_config['secure']) {
-            $this->_config['protocol'] = 'https';
-        }
-    }
-
     /**
+     * @param array<string, mixed> $parameters
+     *
      * @throws ConnectionException|Throwable
      */
     private function runStatement(string $statement, array $parameters): SummarizedResult|CypherQueryException
@@ -254,12 +272,14 @@ class Client
                     throw new ConnectionException(previous: $exception);
                 }
 
+                /** @psalm-suppress ArgumentTypeCoercion */
                 usleep($min_retry_time_ms * 1000);
             } catch (Neo4jException $exception) {
-                $exception = new CypherQueryException(message: $exception->getMessage(), previous: $exception);
-                $exception->setCypherErrorCode($exception->getCypherErrorCode());
-
-                return $exception;
+                return new CypherQueryException(
+                    cypherErrorCode: $exception->getNeo4jCode(),
+                    message: $exception->getMessage(),
+                    previous: $exception
+                );
             } catch (Throwable $exception) {
                 if ($retries_remaining === 0) {
                     throw new $exception;

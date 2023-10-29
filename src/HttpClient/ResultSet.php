@@ -20,7 +20,7 @@ class ResultSet
         return count($this->getAllErrors()) > 0;
     }
 
-    public function getSingleResult(): ?SummarizedResult
+    public function getSingleResult(): SummarizedResult|null
     {
         return $this->getAllResults()[0] ?? null;
     }
@@ -35,9 +35,9 @@ class ResultSet
         );
     }
 
-    public function getFirstError(): ?Exception\CypherQueryException
+    public function getFirstError(): CypherQueryException|null
     {
-        return ($this->_errors[0] ?? null);
+        return $this->getAllErrors()[0] ?? null;
     }
 
     public function getAllStats(): SummaryCounters
