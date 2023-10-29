@@ -3,6 +3,11 @@
 namespace SimpleNeo4j\HttpClient;
 
 use GuzzleHttp\Exception\RequestException;
+use Laudis\Neo4j\Basic\Driver;
+use Laudis\Neo4j\Contracts\DriverInterface;
+use Laudis\Neo4j\Databags\DriverConfiguration;
+use Laudis\Neo4j\Databags\SslConfiguration;
+use Laudis\Neo4j\Enum\SslMode;
 
 class Client
 {
@@ -21,9 +26,6 @@ class Client
 
     const ERROR_MODE_HIDE_ERRORS = 'hide';
     const ERROR_MODE_THROW_ERRORS = 'throw';
-
-    const NEO4J_CYPHER_ENDPOINT = 'db/data/transaction/commit';
-    const NEO4J_CYPHER_ENDPOINT_WITH_DATABASE = 'db/%s/tx/commit';
 
     const DEFAULT_CONFIG = [
         self::CONFIG_HOST => 'localhost',
@@ -48,10 +50,7 @@ class Client
         'Neo.DatabaseError.Statement.ExecutionFailed',
     ];
 
-    /**
-     * @var \GuzzleHttp\Client
-     */
-    private $_http_client;
+    private DriverInterface $driver;
 
     /**
      * @var array
@@ -63,61 +62,72 @@ class Client
      */
     private $_query_batch = [];
 
-    public function __construct(array $config = [], \GuzzleHttp\Client $http_client = null)
+    public function __construct(array $config = [], DriverInterface $driver = null)
     {
         $this->_setConfigFromOptions($config);
-        $this->_http_client = $http_client ?: new \GuzzleHttp\Client();
+
+        $driverConfig = DriverConfiguration::default();
+        $ssl = SslConfiguration::default();
+
+        if ($this->_config[self::CONFIG_SECURE]) {
+            $ssl = $ssl->withMode(SslMode::ENABLE());
+            if ($this->_config[self::CONFIG_NO_SSL_VERIFY]) {
+                $ssl = $ssl->withMode(SslMode::ENABLE_WITH_SELF_SIGNED())
+                    ->withVerifyPeer(false);
+            }
+        }
+
+        $this->driver = $driver ?? Driver::create(
+            uri: sprintf(
+                '%s://%s:%s@%s:%s',
+                $config[self::CONFIG_PROTOCOL],
+                $config['username'],
+                $config['password'],
+                $config['host'],
+                $config['port'] ?? 7687
+            ),
+            configuration: $driverConfig->withSslConfiguration($ssl)
+        );
     }
 
-    public function getHost() : string
+    public function getHost(): string
     {
         return $this->_config[self::CONFIG_HOST];
     }
 
-    public function getPort() : int
+    public function getPort(): int
     {
         return $this->_config[self::CONFIG_PORT];
     }
 
-    public function isSecure() : bool
+    public function isSecure(): bool
     {
         return $this->_config[self::CONFIG_SECURE];
     }
 
-    public function getProtocol() : string
+    public function getProtocol(): string
     {
         return $this->_config[self::CONFIG_PROTOCOL];
     }
 
-    public function getShouldRetryCypherErrors() : bool
+    public function getShouldRetryCypherErrors(): bool
     {
         return $this->_config[self::CONFIG_SHOULD_RETRY_CYPHER_ERRORS];
     }
 
-    public function getCypherMaxRetries() : int
+    public function getCypherMaxRetries(): int
     {
         return $this->_config[self::CONFIG_CYPHER_MAX_RETRIES];
     }
 
-    public function getCypherRetryIntervalMs() : int
+    public function getCypherRetryIntervalMs(): int
     {
         return $this->_config[self::CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS];
     }
 
-    public function getBatchCount() : int {
-
+    public function getBatchCount(): int
+    {
         return count($this->_query_batch);
-
-    }
-
-    public function getCypherEndpoint() : string {
-
-        if ($this->_config[self::CONFIG_DATABASE] !== null) {
-            return sprintf(self::NEO4J_CYPHER_ENDPOINT_WITH_DATABASE, $this->_config[self::CONFIG_DATABASE]);
-        }
-
-        return self::NEO4J_CYPHER_ENDPOINT;
-
     }
 
     public function addQueryToBatch(string $query, array $params = [], bool $include_stats = false)
@@ -151,7 +161,7 @@ class Client
     /**
      * @throws \SimpleNeo4j\HttpClient\Exception\CypherQueryException
      */
-    public function executeBatchQueries() : ResultSet
+    public function executeBatchQueries(): ResultSet
     {
         if (!$this->_query_batch) {
             return new ResultSet();
@@ -196,14 +206,14 @@ class Client
 
     }
 
-    public function executeQuery(string $query, array $params = [], bool $include_stats = false) : ResultSet
+    public function executeQuery(string $query, array $params = [], bool $include_stats = false): ResultSet
     {
         $this->addQueryToBatch($query, $params, $include_stats);
 
         return $this->executeBatchQueries();
     }
 
-    public function callService(string $service, string $body = '') : ?array
+    public function callService(string $service, string $body = ''): ?array
     {
 
         return $this->_sendNeo4jPostRequest($service, $body);
@@ -223,12 +233,12 @@ class Client
         }
     }
 
-    private function _getNeo4jUrl() : string
+    private function _getNeo4jUrl(): string
     {
         return $this->getProtocol() . '://' . $this->getHost() . ':' . $this->getPort();
     }
 
-    private function _getRequestHeaders() : array
+    private function _getRequestHeaders(): array
     {
         $headers = [
             'Content-type' => 'application/json',
@@ -244,7 +254,7 @@ class Client
     /**
      * @throws \SimpleNeo4j\HttpClient\Exception\ConnectionException
      */
-    private function _sendNeo4jPostRequest( string $endpoint, string $body ) : ?array
+    private function _sendNeo4jPostRequest(string $endpoint, string $body): ?array
     {
         $uri = $this->_getNeo4jUrl() . '/' . $endpoint;
 

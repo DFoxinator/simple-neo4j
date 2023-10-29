@@ -18,10 +18,5 @@
     "psr-4": {
       "SimpleNeo4j\\Tests\\": "tests/"
     }
-  },
-  "config": {
-    "allow-plugins": {
-      "php-http/discovery": true
-    }
   }
 }
