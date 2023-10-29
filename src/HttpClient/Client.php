@@ -2,13 +2,17 @@
 
 namespace SimpleNeo4j\HttpClient;
 
-use GuzzleHttp\Exception\RequestException;
+use Bolt\error\ConnectException as BoltConnectException;
 use Laudis\Neo4j\Authentication\Authenticate;
 use Laudis\Neo4j\Basic\Driver;
 use Laudis\Neo4j\Contracts\DriverInterface;
 use Laudis\Neo4j\Databags\DriverConfiguration;
+use Laudis\Neo4j\Databags\SessionConfiguration;
 use Laudis\Neo4j\Databags\SslConfiguration;
+use Laudis\Neo4j\Databags\SummarizedResult;
 use Laudis\Neo4j\Enum\SslMode;
+use SimpleNeo4j\HttpClient\Exception\ConnectionException;
+use SimpleNeo4j\HttpClient\Exception\CypherQueryException;
 
 class Client
 {
@@ -132,7 +136,7 @@ class Client
         return count($this->_query_batch);
     }
 
-    public function addQueryToBatch(string $query, array $params = [], bool $include_stats = false)
+    public function addQueryToBatch(string $query, array $params = [], bool $include_stats = false): void
     {
         $params = [
             'statement' => $query,
@@ -146,7 +150,7 @@ class Client
         $this->_query_batch[] = $params;
     }
 
-    public function prependQueryToBatch(string $query, array $params = [], bool $include_stats = false)
+    public function prependQueryToBatch(string $query, array $params = [], bool $include_stats = false): void
     {
         $params = [
             'statement' => $query,
@@ -161,7 +165,7 @@ class Client
     }
 
     /**
-     * @throws \SimpleNeo4j\HttpClient\Exception\CypherQueryException
+     * @throws CypherQueryException
      */
     public function executeBatchQueries(): ResultSet
     {
@@ -222,7 +226,7 @@ class Client
 
     }
 
-    private function _setConfigFromOptions(array $config = [])
+    private function _setConfigFromOptions(array $config = []): void
     {
         $this->_config = array_merge(self::DEFAULT_CONFIG, $config);
 
@@ -236,37 +240,29 @@ class Client
     }
 
     /**
-     * @throws \SimpleNeo4j\HttpClient\Exception\ConnectionException
+     * @throws ConnectionException
      */
-    private function _sendNeo4jPostRequest(string $statement, array $parameters, bool $includeStats): ?array
+    private function _sendNeo4jPostRequest(string $statement, array $parameters, bool $includeStats): ?SummarizedResult
     {
-        $uri = $this->_getNeo4jUrl() . '/' . $endpoint;
-
-        $post_options = [
-            'headers' => $this->_getRequestHeaders(),
-            'body' => $body,
-        ];
-
-        if (isset($this->_config[self::CONFIG_NO_SSL_VERIFY])) {
-            $post_options['verify'] = !$this->_config[self::CONFIG_NO_SSL_VERIFY];
-        }
-
         $retries_remaining = $this->_config[self::CONFIG_REQUEST_MAX_RETRIES];
         $min_retry_time_ms = $this->_config[self::CONFIG_REQUEST_RETRY_INTERVAL_MS];
 
+        $session = $this->driver->createSession(SessionConfiguration::create(
+            $this->_config[self::CONFIG_DATABASE],
+        ));
+
         do {
             try {
-                $result = $this->_http_client->post($uri, $post_options);
-                $result = json_decode($result->getBody()->getContents(), true);
-
-                return $result;
-            } catch (\GuzzleHttp\Exception\ConnectException|RequestException $exception) {
-                if ($retries_remaining === 0 || ($exception instanceof RequestException && $exception->getCode() != 503)) {
-                    throw new Exception\ConnectionException();
+                return $session->run($statement, $parameters);
+            } catch (BoltConnectException $exception) {
+                if ($retries_remaining === 0) {
+                    throw new ConnectionException(previous: $exception);
                 }
 
                 usleep($min_retry_time_ms * 1000);
             }
         } while ($retries_remaining-- > 0);
+
+        return null;
     }
 }
