@@ -9,16 +9,16 @@ use SimpleNeo4j\ORM\Exception\ObjectFetchException;
 class Manager {
 
     private HttpClient\Client $_neo4j_client;
-    private HttpClient\Client $_neo4j_read_client;
-    private bool $_forced_leader = false;
 
-    public function __construct(HttpClient\Client $neo4j_client, HttpClient\Client $neo4j_read_client = null)
+    public function __construct(HttpClient\Client $neo4j_client)
     {
         $this->_neo4j_client = $neo4j_client;
-        $this->_neo4j_read_client = $neo4j_read_client ?? $neo4j_client;
     }
 
-    public function fetchObjectByKey(string $model_class, string $key, $id, bool $force_leader = false) : ?ModelAbstract
+    /**
+     * @param class-string<ModelAbstract> $model_class
+     */
+    public function fetchObjectByKey(string $model_class, string $key, mixed $id) : ?ModelAbstract
     {
         $entity = $model_class::ENTITY;
 
@@ -28,7 +28,7 @@ class Manager {
 
         $params = ['id' => $id];
 
-        $result = $this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params);
+        $result = $this->_neo4j_client->executeQuery($query, $params, true);
 
         $result = $result->getSingleResult();
 
@@ -515,13 +515,4 @@ class Manager {
             'where_props' => $where_props,
         ];
     }
-
-    private function _getNeo4jReadClient(bool $force_leader) : HttpClient\Client {
-
-        $this->_forced_leader = $force_leader;
-
-        return $force_leader ? $this->_neo4j_client : $this->_neo4j_read_client;
-
-    }
-
 }

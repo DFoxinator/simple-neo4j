@@ -6,10 +6,12 @@ use Bolt\error\ConnectException as BoltConnectException;
 use Laudis\Neo4j\Authentication\Authenticate;
 use Laudis\Neo4j\Basic\Driver;
 use Laudis\Neo4j\Contracts\DriverInterface;
+use Laudis\Neo4j\Databags\Bookmark;
 use Laudis\Neo4j\Databags\DriverConfiguration;
 use Laudis\Neo4j\Databags\SessionConfiguration;
 use Laudis\Neo4j\Databags\SslConfiguration;
 use Laudis\Neo4j\Databags\SummarizedResult;
+use Laudis\Neo4j\Enum\AccessMode;
 use Laudis\Neo4j\Enum\SslMode;
 use Laudis\Neo4j\Exception\Neo4jException;
 use LogicException;
@@ -86,7 +88,7 @@ class Client
     private array $_config;
 
     /**
-     * @var list<array{statement: string, parameters: array<string, mixed>}>
+     * @var list<array{statement: string, parameters: array<string, mixed>, readonly: bool}>
      */
     private array $_query_batch = [];
 
@@ -182,17 +184,17 @@ class Client
     /**
      * @param array<string, mixed> $parameters
      */
-    public function addQueryToBatch(string $statement, array $parameters = []): void
+    public function addQueryToBatch(string $statement, array $parameters = [], bool $readonly = false): void
     {
-        $this->_query_batch[] = compact('statement', 'parameters');
+        $this->_query_batch[] = compact('statement', 'parameters', 'readonly');
     }
 
     /**
      * @param array<string, mixed> $parameters
      */
-    public function prependQueryToBatch(string $statement, array $parameters = []): void
+    public function prependQueryToBatch(string $statement, array $parameters = [], bool $readonly = false): void
     {
-        array_unshift($this->_query_batch, compact('statement', 'parameters'));
+        array_unshift($this->_query_batch, compact('statement', 'parameters', 'readonly'));
     }
 
     /**
@@ -207,10 +209,11 @@ class Client
         $num_times_retried = 0;
         $results = [];
         $first_error = null;
+        $bookmark = null;
         foreach ($this->_query_batch as $query) {
             do {
                 $retry = false;
-                $result = $this->runStatement($query['statement'], $query['parameters']);
+                ['result' => $result, 'bookmark' => $bookmark ] = $this->runStatement($query['statement'], $query['parameters'], $query['readonly'], $bookmark);
 
                 if ($result instanceof CypherQueryException) {
                     $first_error ??= $result;
@@ -243,9 +246,9 @@ class Client
      * @throws CypherQueryException
      * @throws Throwable
      */
-    public function executeQuery(string $query, array $params = []): ResultSet
+    public function executeQuery(string $query, array $params = [], bool $readonly = false): ResultSet
     {
-        $this->addQueryToBatch($query, $params);
+        $this->addQueryToBatch($query, $params, $readonly);
 
         return $this->executeBatchQueries();
     }
@@ -254,19 +257,25 @@ class Client
      * @param array<string, mixed> $parameters
      *
      * @throws ConnectionException|Throwable
+     *
+     * @return array{result: SummarizedResult|CypherQueryException, bookmark: Bookmark|null}
      */
-    private function runStatement(string $statement, array $parameters): SummarizedResult|CypherQueryException
+    private function runStatement(string $statement, array $parameters, bool $readOnly, Bookmark|null $previous): array
     {
         $retries_remaining = $this->_config[self::CONFIG_REQUEST_MAX_RETRIES];
         $min_retry_time_ms = $this->_config[self::CONFIG_REQUEST_RETRY_INTERVAL_MS];
 
-        $session = $this->driver->createSession(SessionConfiguration::create(
-            $this->_config[self::CONFIG_DATABASE],
-        ));
-
         do {
+            $session = $this->driver->createSession(SessionConfiguration::create(
+                database: $this->_config[self::CONFIG_DATABASE],
+                defaultAccessMode: $readOnly ? AccessMode::READ() : AccessMode::WRITE(),
+                bookmarks: $previous ? [ $previous ] : null
+            ));
+
             try {
-                return $session->run($statement, $parameters);
+                $result = $session->run(statement: $statement, parameters: $parameters);
+
+                return ['result' => $result, 'bookmark' => $session->getLastBookmark()];
             } catch (BoltConnectException $exception) {
                 if ($retries_remaining === 0) {
                     throw new ConnectionException(previous: $exception);
@@ -275,11 +284,14 @@ class Client
                 /** @psalm-suppress ArgumentTypeCoercion */
                 usleep($min_retry_time_ms * 1000);
             } catch (Neo4jException $exception) {
-                return new CypherQueryException(
-                    cypherErrorCode: $exception->getNeo4jCode(),
-                    message: $exception->getMessage(),
-                    previous: $exception
-                );
+                return [
+                    'result' => new CypherQueryException(
+                        cypherErrorCode: $exception->getNeo4jCode(),
+                        message: $exception->getMessage(),
+                        previous: $exception
+                    ),
+                    'bookmark' => $previous
+                ];
             } catch (Throwable $exception) {
                 if ($retries_remaining === 0) {
                     throw new $exception;
