@@ -11,8 +11,10 @@ use Laudis\Neo4j\Databags\SessionConfiguration;
 use Laudis\Neo4j\Databags\SslConfiguration;
 use Laudis\Neo4j\Databags\SummarizedResult;
 use Laudis\Neo4j\Enum\SslMode;
+use Laudis\Neo4j\Exception\Neo4jException;
 use SimpleNeo4j\HttpClient\Exception\ConnectionException;
 use SimpleNeo4j\HttpClient\Exception\CypherQueryException;
+use Throwable;
 
 class Client
 {
@@ -240,9 +242,9 @@ class Client
     }
 
     /**
-     * @throws ConnectionException
+     * @throws ConnectionException|Throwable
      */
-    private function _sendNeo4jPostRequest(string $statement, array $parameters, bool $includeStats): ?SummarizedResult
+    private function _sendNeo4jPostRequest(string $statement, array $parameters, bool $includeStats): SummarizedResult|Neo4jException
     {
         $retries_remaining = $this->_config[self::CONFIG_REQUEST_MAX_RETRIES];
         $min_retry_time_ms = $this->_config[self::CONFIG_REQUEST_RETRY_INTERVAL_MS];
@@ -260,9 +262,13 @@ class Client
                 }
 
                 usleep($min_retry_time_ms * 1000);
+            } catch (Neo4jException $exception) {
+                return $exception;
+            } catch (Throwable $exception) {
+                if ($retries_remaining === 0) {
+                    throw new $exception;
+                }
             }
         } while ($retries_remaining-- > 0);
-
-        return null;
     }
 }
