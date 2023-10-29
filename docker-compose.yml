@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: simple-neo4j:latest
+    networks:
+      - neo4j
+    volumes:
+      - .:/opt/project
+  neo4j:
+    image: neo4j:5.10-community
+    networks:
+      - neo4j
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1" ]
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    environment:
+      NEO4J_AUTH: neo4j/testtest
+
+
+networks:
+  neo4j:
