@@ -4,14 +4,14 @@ namespace SimpleNeo4j\ORM;
 
 abstract class RelationshipModelAbstract extends ModelAbstract {
 
-    protected $_start_node;
-    protected $_end_node;
     protected $_manager;
 
-    public function __construct(NodeModelAbstract $start_node, NodeModelAbstract $end_node, array $props = [], Manager $manager = null)
-    {
-        $this->_start_node = $start_node;
-        $this->_end_node = $end_node;
+    public function __construct(
+        protected NodeModelAbstract $_start_node,
+        protected NodeModelAbstract $_end_node,
+        array $props = [],
+        Manager $manager = null
+    ) {
         $this->_manager = $manager;
 
         parent::__construct($props, $manager);
