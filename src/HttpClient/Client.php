@@ -244,7 +244,7 @@ class Client
     /**
      * @throws ConnectionException|Throwable
      */
-    private function _sendNeo4jPostRequest(string $statement, array $parameters, bool $includeStats): SummarizedResult|Neo4jException
+    private function _sendNeo4jPostRequest(string $statement, array $parameters, bool $includeStats): SummarizedResult|CypherQueryException
     {
         $retries_remaining = $this->_config[self::CONFIG_REQUEST_MAX_RETRIES];
         $min_retry_time_ms = $this->_config[self::CONFIG_REQUEST_RETRY_INTERVAL_MS];
@@ -263,6 +263,9 @@ class Client
 
                 usleep($min_retry_time_ms * 1000);
             } catch (Neo4jException $exception) {
+                $exception = new CypherQueryException(message: $exception->getMessage(), previous: $exception);
+                $exception->setCypherErrorCode($exception->getCypherErrorCode());
+
                 return $exception;
             } catch (Throwable $exception) {
                 if ($retries_remaining === 0) {
