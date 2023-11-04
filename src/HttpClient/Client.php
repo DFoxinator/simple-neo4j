@@ -94,25 +94,27 @@ class Client
 
     /**
      * @param array{
-     *      host ?: string,
+     *      host ?: string|null,
      *      database ?: string|null,
      *      port ?: int|null,
-     *      secure ?: bool,
-     *      protocol ?: string,
-     *      error_mode ?: 'hide'|'throw',
-     *      no_ssl_verify ?: bool,
-     *      should_retry_cypher_errors ?: bool,
-     *      cypher_max_retries ?: int,
-     *      cypher_retry_max_interval_ms ?: int,
-     *      request_max_retries ?: int,
-     *      request_retry_interval_ms ?: int,
-     *      username ?: string,
-     *      password ?: string
+     *      secure ?: bool|null,
+     *      protocol ?: string|null,
+     *      error_mode ?: 'hide'|'throw'|null,
+     *      no_ssl_verify ?: bool|null,
+     *      should_retry_cypher_errors ?: bool|null,
+     *      cypher_max_retries ?: int|null,
+     *      cypher_retry_max_interval_ms ?: int|null,
+     *      request_max_retries ?: int|null,
+     *      request_retry_interval_ms ?: int|null,
+     *      username ?: string|null,
+     *      password ?: string|null
      *  } $config
      * @param DriverInterface<SummarizedResult>|null $driver
      */
     public function __construct(array $config = [], DriverInterface $driver = null)
     {
+        $config = array_filter($config, fn($value) => $value !== null);
+        /** @psalm-suppress InvalidPropertyAssignmentValue */
         $this->_config = array_merge(self::DEFAULT_CONFIG, $config);
 
         $driverConfig = DriverConfiguration::default();
