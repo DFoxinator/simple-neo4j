@@ -245,6 +245,8 @@ class Client
             throw $first_error;
         }
 
+        $this->_query_batch = [];
+
         return new ResultSet($results);
     }
 
