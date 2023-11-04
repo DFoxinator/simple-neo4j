@@ -19,11 +19,8 @@
         </ignoreFiles>
     </projectFiles>
     <issueHandlers>
-        <UnsafeInstantiation>
-            <errorLevel type="suppress">
-                <directory name="src"/>
-            </errorLevel>
-        </UnsafeInstantiation>
+        <PossiblyUnusedMethod errorLevel="suppress" />
+        <UnusedClass errorLevel="suppress" />
     </issueHandlers>
     <plugins>
         <pluginClass class="Psalm\PhpUnitPlugin\Plugin"/>

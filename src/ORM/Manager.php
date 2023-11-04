@@ -79,7 +79,7 @@ class Manager
      * @param class-string<ModelAbstract> $model_class
      * @param array{0: string, 1: string}&array<string> $order_by
      */
-    public function fetchObjectsByLabel(string $model_class, array $order_by = null, int $limit = null, bool $force_leader = false): array
+    public function fetchObjectsByLabel(string $model_class, array $order_by = null, int $limit = null): array
     {
         /** @var string */
         $entity = $model_class::ENTITY;
@@ -137,7 +137,7 @@ class Manager
      * @param array<string, mixed> $props
      * @param array{0: string, 1: string}&array<string> $order_by
      */
-    public function fetchObjectsByLabelAndProps(string $model_class, array $props, array $order_by = null, int $limit = null, bool $force_leader = false): array
+    public function fetchObjectsByLabelAndProps(string $model_class, array $props, array $order_by = null, int $limit = null): array
     {
         /** @var string */
         $entity = $model_class::ENTITY;

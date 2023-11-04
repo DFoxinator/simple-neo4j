@@ -12,7 +12,7 @@
         </testsuite>
     </testsuites>
     <php>
-        <env name="NEO4J_HOST" value="neo4j"/>
+        <env name="NEO4J_HOST" value="localhost"/>
 <!--        <env name="NEO4J_DATABASE" value=""/>-->
 <!--        <env name="NEO4J_PORT" value=""/>-->
 <!--        <env name="NEO4J_SECURE" value=""/>-->

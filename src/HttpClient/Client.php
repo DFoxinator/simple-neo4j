@@ -19,6 +19,24 @@ use SimpleNeo4j\HttpClient\Exception\ConnectionException;
 use SimpleNeo4j\HttpClient\Exception\CypherQueryException;
 use Throwable;
 
+/**
+ * @psalm-type Configuration = array{
+ *      host: string,
+ *      database: string|null,
+ *      port: int|null,
+ *      secure: bool,
+ *      protocol: string,
+ *      error_mode: 'throw'|'hide',
+ *      no_ssl_verify: bool,
+ *      should_retry_cypher_errors: bool,
+ *      cypher_max_retries: int,
+ *      cypher_retry_max_interval_ms: int,
+ *      request_max_retries: int,
+ *      request_retry_interval_ms: int,
+ *      username: string|null,
+ *      password: string|null
+ *  }
+ */
 class Client
 {
     const CONFIG_HOST = 'host';
@@ -68,22 +86,7 @@ class Client
     private DriverInterface $driver;
 
     /**
-     * @var array{
-     *     host: string,
-     *     database: string|null,
-     *     port: int|null,
-     *     secure: bool,
-     *     protocol: string,
-     *     error_mode: 'throw'|'hide',
-     *     no_ssl_verify: bool,
-     *     should_retry_cypher_errors: bool,
-     *     cypher_max_retries: int,
-     *     cypher_retry_max_interval_ms: int,
-     *     request_max_retries: int,
-     *     request_retry_interval_ms: int,
-     *     username: string|null,
-     *     password: string|null
-     * }
+     * @var Configuration
      */
     private array $_config;
 
@@ -94,28 +97,32 @@ class Client
 
     /**
      * @param array{
-     *      host ?: string|null,
-     *      database ?: string|null,
-     *      port ?: int|null,
-     *      secure ?: bool|null,
-     *      protocol ?: string|null,
-     *      error_mode ?: 'hide'|'throw'|null,
-     *      no_ssl_verify ?: bool|null,
-     *      should_retry_cypher_errors ?: bool|null,
-     *      cypher_max_retries ?: int|null,
-     *      cypher_retry_max_interval_ms ?: int|null,
-     *      request_max_retries ?: int|null,
-     *      request_retry_interval_ms ?: int|null,
-     *      username ?: string|null,
-     *      password ?: string|null
-     *  } $config
+     *        host ?: string|null,
+     *        database ?: string|null,
+     *        port ?: int|null,
+     *        secure ?: bool|null,
+     *        protocol ?: string|null,
+     *        error_mode ?: 'hide'|'throw'|null,
+     *        no_ssl_verify ?: bool|null,
+     *        should_retry_cypher_errors ?: bool|null,
+     *        cypher_max_retries ?: int|null,
+     *        cypher_retry_max_interval_ms ?: int|null,
+     *        request_max_retries ?: int|null,
+     *        request_retry_interval_ms ?: int|null,
+     *        username ?: string|null,
+     *        password ?: string|null
+     *    } $config
      * @param DriverInterface<SummarizedResult>|null $driver
      */
     public function __construct(array $config = [], DriverInterface $driver = null)
     {
-        $config = array_filter($config, fn($value) => $value !== null);
-        /** @psalm-suppress InvalidPropertyAssignmentValue */
-        $this->_config = array_merge(self::DEFAULT_CONFIG, $config);
+        foreach (self::DEFAULT_CONFIG as $key => $value) {
+            if (!array_key_exists($key, $config) || $config[$key] === null) {
+                $config[$key] = $value;
+            }
+        }
+        /** @var Configuration */
+        $this->_config = $config;
 
         $driverConfig = DriverConfiguration::default();
         $ssl = SslConfiguration::default();
@@ -296,7 +303,7 @@ class Client
                 ];
             } catch (Throwable $exception) {
                 if ($retries_remaining === 0) {
-                    throw new $exception;
+                    throw $exception;
                 }
             }
         } while ($retries_remaining-- > 0);
