@@ -2,124 +2,82 @@
 
 namespace SimpleNeo4j\HttpClient;
 
+use Laudis\Neo4j\Databags\SummarizedResult;
+use Laudis\Neo4j\Databags\SummaryCounters;
+use SimpleNeo4j\HttpClient\Exception\CypherQueryException;
+
 class ResultSet
 {
     /**
-     * @var array
+     * @param list<SummarizedResult|CypherQueryException> $_results
      */
-    private $_results = [];
+    public function __construct(private array $_results = [])
+    {
+    }
+
+    public function hasError(): bool
+    {
+        return count($this->getAllErrors()) > 0;
+    }
+
+    public function getSingleResult(): SummarizedResult|null
+    {
+        return $this->getAllResults()[0] ?? null;
+    }
 
     /**
-     * @var array
+     * @return list<SummarizedResult>
      */
-    private $_stats = [];
+    public function getAllResults(): array
+    {
+        return array_values(
+            array_filter($this->_results, static fn($x) => $x instanceof SummarizedResult)
+        );
+    }
+
+    public function getFirstError(): CypherQueryException|null
+    {
+        return $this->getAllErrors()[0] ?? null;
+    }
+
+    public function getAllStats(): SummaryCounters
+    {
+        $counters = new SummaryCounters();
+        foreach ($this->getAllResults() as $result) {
+            $counters = $counters->merge($result->getSummary()->getCounters());
+        }
+
+        return $counters;
+    }
 
     /**
-     * @var \SimpleNeo4j\HttpClient\Exception\CypherQueryException[]
+     * @return list<CypherQueryException>
      */
-    private $_errors = [];
-
-    public function __construct(array $data = [])
+    public function getAllErrors(): array
     {
-        if ($data) {
-            $this->_parseData($data);
-        }
+        return array_values(
+            array_filter($this->_results, static fn($x) => $x instanceof CypherQueryException)
+        );
     }
 
-    private function _parseData(array $data)
+    public function getNumNodesCreated(): int
     {
-        if (!isset($data['results']) || !is_array($data['results'])) {
-            return;
-        }
 
-        foreach ($data['results'] as $n => $result_info) {
-            $use_result = [];
-            foreach ($result_info['data'] as $row_data) {
-                $this_row = [];
-                foreach ($row_data['row'] as $field_id => $val) {
-                    $this_row[$result_info['columns'][$field_id]] = $val;
-                }
-
-                $use_result[] = $this_row;
-            }
-
-            if (isset($result_info['stats'])) {
-                $this->_stats[$n] = $result_info['stats'];
-            }
-
-            $this->_results[] = $use_result;
-        }
-
-        if (isset($data['errors']) && is_array($data['errors'])) {
-            foreach ($data['errors'] as $error_info) {
-                $error = new Exception\CypherQueryException($error_info['message'] ?? 'Unknown Cypher error.');
-                $error->setCypherErrorCode($error_info['code'] ?? 'unknown');
-                $this->_errors[] = $error;
-            }
-        }
+        return $this->getAllStats()->nodesCreated();
     }
 
-    public function hasError() : bool
+    public function getNumNodesDeleted(): int
     {
-        return !empty($this->_errors);
+        return $this->getAllStats()->nodesDeleted();
     }
 
-    public function getSingleResult() : ?array
+    public function getNumRelationshipsCreated(): int
     {
-        return ($this->_results[0] ?? null);
+        return $this->getAllStats()->relationshipsCreated();
     }
 
-    public function getAllResults() : array
+    public function getNumRelationshipsDeleted(): int
     {
-        return $this->_results;
-    }
-
-    public function getFirstError() : ?Exception\CypherQueryException
-    {
-        return ($this->_errors[0] ?? null);
-    }
-
-    public function getAllStats() : array {
-
-        return $this->_stats;
-
-    }
-
-    public function getAllErrors() : array
-    {
-        return $this->_errors;
-    }
-
-    public function getStatFieldSum(string $field) : int {
-
-        $stats = $this->getAllStats();
-        $stats = array_column($stats, $field);
-
-        return array_sum($stats);
-
-    }
-
-    public function getNumNodesCreated() : int {
-
-        return $this->getStatFieldSum('nodes_created');
-
-    }
-
-    public function getNumNodesDeleted() : int {
-
-        return $this->getStatFieldSum('nodes_deleted');
-
-    }
-
-    public function getNumRelationshipsCreated() : int {
-
-        return $this->getStatFieldSum('relationships_created');
-
-    }
-
-    public function getNumRelationshipsDeleted() : int {
-
-        return $this->getStatFieldSum('relationship_deleted');
-
+        return $this->getAllStats()->relationshipsDeleted();
     }
 }

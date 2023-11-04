@@ -1,10 +1,13 @@
 <?php
 
-namespace SimpleNeo4j\Tests;
+namespace SimpleNeo4j\Tests\Unit;
 
-class ClientTest extends \PHPUnit_Framework_TestCase
+use PHPUnit\Framework\TestCase;
+use SimpleNeo4j\HttpClient\Client;
+
+class ClientTest extends TestCase
 {
-    public function testClientCreationBasic()
+    public function testClientCreationBasic(): void
     {
         $config = [
             'host' => '127.0.0.1',
@@ -12,15 +15,15 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'password' => 'mypw',
         ];
 
-        $client = new \SimpleNeo4j\HttpClient\Client( $config );
+        $client = new Client( $config );
 
         $this->assertEquals('127.0.0.1', $client->getHost());
-        $this->assertEquals(7474, $client->getPort());
-        $this->assertEquals('http', $client->getProtocol());
+        $this->assertNull($client->getPort());
+        $this->assertEquals('neo4j', $client->getProtocol());
         $this->assertFalse($client->isSecure());
     }
 
-    public function testClientCreationSecureNoPort()
+    public function testClientCreationSecureNoPort(): void
     {
         $config = [
             'host' => '127.0.0.1',
@@ -29,14 +32,14 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'secure' => true,
         ];
 
-        $client = new \SimpleNeo4j\HttpClient\Client( $config );
+        $client = new Client( $config );
 
-        $this->assertEquals(7473, $client->getPort());
-        $this->assertEquals('https', $client->getProtocol());
+        $this->assertNull($client->getPort());
+        $this->assertEquals('neo4j', $client->getProtocol());
         $this->assertTrue($client->isSecure());
     }
 
-    public function testClientCreationNotSecurePort()
+    public function testClientCreationNotSecurePort(): void
     {
         $config = [
             'host' => '127.0.0.1',
@@ -46,14 +49,14 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'port' => 8888,
         ];
 
-        $client = new \SimpleNeo4j\HttpClient\Client( $config );
+        $client = new Client( $config );
 
         $this->assertEquals(8888, $client->getPort());
-        $this->assertEquals('http', $client->getProtocol());
+        $this->assertEquals('neo4j', $client->getProtocol());
         $this->assertFalse($client->isSecure());
     }
 
-    public function testClientCreationSecurePort()
+    public function testClientCreationSecurePort(): void
     {
         $config = [
             'host' => '127.0.0.1',
@@ -63,10 +66,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase
             'port' => 9999,
         ];
 
-        $client = new \SimpleNeo4j\HttpClient\Client( $config );
+        $client = new Client( $config );
 
         $this->assertEquals(9999, $client->getPort());
-        $this->assertEquals('https', $client->getProtocol());
+        $this->assertEquals('neo4j', $client->getProtocol());
         $this->assertTrue($client->isSecure());
     }
 }
