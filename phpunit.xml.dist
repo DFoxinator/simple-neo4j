@@ -17,7 +17,7 @@
 <!--        <env name="NEO4J_PORT" value=""/>-->
 <!--        <env name="NEO4J_SECURE" value=""/>-->
 <!--        <env name="NEO4J_PROTOCOL" value=""/>-->
-<!--        <env name="NEO4J_ERROR_MODE" value=""/>-->
+        <env name="NEO4J_ERROR_MODE" value="throw"/>
 <!--        <env name="NEO4J_NO_SSL_VERIFY" value="" />-->
 <!--        <env name="NEO4J_SHOULD_RETRY_CYPHER_ERRORS" value=""/>-->
 <!--        <env name="NEO4J_CYPHER_MAX_RETRIES" value=""/>-->

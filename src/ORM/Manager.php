@@ -189,8 +189,8 @@ class Manager
         return $model_class::fromDataList(
             $this->execute($query, $params, true)
                 ->getAsMap(0)
-                ->getAsArrayList('info')
-                ->map(static fn(Map $x) => $x->toArray())
+                ->getAsMap('info')
+                ->map(static fn(Node $x) => $x->getProperties()->toArray())
                 ->toArray(),
             $this
         );

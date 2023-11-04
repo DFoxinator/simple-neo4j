@@ -55,7 +55,7 @@ abstract class ModelAbstract {
      */
     protected array $_field_info;
 
-    private int $_neo4j_id;
+    private int|string|null $_neo4j_id = null;
 
     /**
      * @param array<string, mixed> $data
