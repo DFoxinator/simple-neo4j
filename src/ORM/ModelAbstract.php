@@ -2,6 +2,24 @@
 
 namespace SimpleNeo4j\ORM;
 
+/**
+ * @psalm-suppress UnsafeInstantiation
+ * @psalm-suppress MixedAssignment
+ *
+ * @psalm-type FieldInfo = array{
+ *      type: mixed,
+ *      optional?: bool,
+ *      default?: mixed,
+ *      value: mixed,
+ *      model_info?: string,
+ *      unique?: bool,
+ *      primary?: bool,
+ *      related_type?: string,
+ *      entity_type?: string,
+ *      related_direction?: string,
+ *      ...<array-key, mixed>
+ * }
+ */
 abstract class ModelAbstract {
 
     const PROP_INFO_KEY = 'model_info';
@@ -33,19 +51,19 @@ abstract class ModelAbstract {
 
     const IS_UNIQUE = false;
 
-    protected $_field_info;
+    /** @var array<string, FieldInfo>
+     */
+    protected array $_field_info;
+
+    private int $_neo4j_id;
 
     /**
-     * @var Manager
+     * @param array<string, mixed> $data
+     *
+     * @psalm-suppress MixedArgument
      */
-    protected $_manager;
-
-    private $_neo4j_id;
-
-    public function __construct(array $data = [], Manager $manager = null)
+    public function __construct(array $data = [], protected Manager|null $manager = null)
     {
-        $this->_manager = $manager;
-
         $this->_field_info = [];
 
         $this_obj_props = get_object_vars($this);
@@ -64,8 +82,6 @@ abstract class ModelAbstract {
             }
 
             $clean_prop_name = substr($prop_name, 1);
-
-            $use_value = null;
 
             if (!array_key_exists($clean_prop_name, $data)) {
                 if (array_key_exists(self::PROP_INFO_DEFAULT, $prop_value)) {
@@ -87,7 +103,7 @@ abstract class ModelAbstract {
                 } else {
                     throw new Exception\MissingPropertyException('Property is missing - ' . $clean_prop_name);
                 }
-            } elseif ($prop_value[self::PROP_INFO_TYPE] == ModelAbstract::TYPE_JSON) {
+            } elseif ($prop_value[self::PROP_INFO_TYPE] === ModelAbstract::TYPE_JSON) {
                 $use_value = is_array($data[$clean_prop_name]) ? $data[$clean_prop_name] : json_decode($data[$clean_prop_name], true);
             } else {
                 $use_value = $data[$clean_prop_name];
@@ -106,6 +122,14 @@ abstract class ModelAbstract {
         $this->_neo4j_id = $data['neo4j_id'] ?? null;
     }
 
+    /**
+     * @return  array{
+     *              props: array<string, mixed>,
+     *              extra: array{primary?: string, unique?: mixed, auto_increment?: string, ...<string, mixed>}
+     * }
+     *
+     * @psalm-suppress MixedAssignment
+     */
     public function getPropertyInfo() : array
     {
         $property_into = [
@@ -127,7 +151,7 @@ abstract class ModelAbstract {
                 $property_into['props'][$field_name] = is_array($current_value) ? json_encode($current_value) : $current_value;
             }
             elseif ($field_value[self::PROP_INFO_TYPE] == self::TYPE_RELATION) {
-
+                // TODO - implement this
             } else {
                 $property_into['props'][$field_name] = $this->{"_" . $field_name};
             }
@@ -138,7 +162,7 @@ abstract class ModelAbstract {
         }
 
         if (static::IS_UNIQUE) {
-            $property_into['extra']['unique'] = true;
+            $property_into['extra']['unique'] = static::IS_UNIQUE;
         }
 
         return $property_into;
@@ -146,14 +170,24 @@ abstract class ModelAbstract {
 
     public function getEntityType() : string
     {
+        /**
+         * todo enforce this through an abstract static method instead
+         *
+         * @psalm-suppress UndefinedConstant
+         * @var string
+         */
         return static::ENTITY;
     }
 
     public function isUniqueEntity() : bool
     {
+        /** @var bool */
         return static::IS_UNIQUE;
     }
 
+    /**
+     * @param array<array-key, array<string, mixed>> $infos
+     */
     public static function fromDataList(array $infos, Manager $manager = null) : array
     {
         $objects = [];

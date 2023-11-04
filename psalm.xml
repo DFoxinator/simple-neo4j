@@ -18,6 +18,13 @@
             <directory name="vendor"/>
         </ignoreFiles>
     </projectFiles>
+    <issueHandlers>
+        <UnsafeInstantiation>
+            <errorLevel type="suppress">
+                <directory name="src"/>
+            </errorLevel>
+        </UnsafeInstantiation>
+    </issueHandlers>
     <plugins>
         <pluginClass class="Psalm\PhpUnitPlugin\Plugin"/>
     </plugins>

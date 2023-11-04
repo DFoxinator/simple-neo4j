@@ -2,12 +2,21 @@
 
 namespace SimpleNeo4j\ORM;
 
+use Laudis\Neo4j\Databags\SummarizedResult;
+use Laudis\Neo4j\Types\CypherMap;
+use Laudis\Neo4j\Types\Map;
+use Laudis\Neo4j\Types\Node;
+use LogicException;
 use SimpleNeo4j\HttpClient;
 use SimpleNeo4j\ORM\Exception\ConstraintViolationException;
-use SimpleNeo4j\ORM\Exception\ObjectFetchException;
 
-class Manager {
-
+/**
+ * @psalm-suppress UnsafeInstantiation
+ *
+ * @psalm-import-type FieldInfo from ModelAbstract
+ */
+class Manager
+{
     private HttpClient\Client $_neo4j_client;
 
     public function __construct(HttpClient\Client $neo4j_client)
@@ -18,8 +27,9 @@ class Manager {
     /**
      * @param class-string<ModelAbstract> $model_class
      */
-    public function fetchObjectByKey(string $model_class, string $key, mixed $id) : ?ModelAbstract
+    public function fetchObjectByKey(string $model_class, string $key, mixed $id): ?ModelAbstract
     {
+        /** @var string */
         $entity = $model_class::ENTITY;
 
         $query = "MATCH (n:$entity{{$key}:\$id})
@@ -28,19 +38,17 @@ class Manager {
 
         $params = ['id' => $id];
 
-        $result = $this->_neo4j_client->executeQuery($query, $params, true);
+        $result = $this->execute($query, $params, true);
 
-        $result = $result->getSingleResult();
-
-        if (!isset($result[0]['info'])) {
-            return null;
-        }
-
-        return new $model_class($result[0]['info'], $this);
+        return new $model_class($result->getAsMap(0)->getAsMap('info')->toArray(), $this);
     }
 
-    public function fetchObjectsByKeys(string $model_class, string $key, array $ids, bool $force_leader = false) : array
+    /**
+     * @param class-string<ModelAbstract> $model_class
+     */
+    public function fetchObjectsByKeys(string $model_class, string $key, array $ids): array
     {
+        /** @var string */
         $entity = $model_class::ENTITY;
 
         $query = "MATCH (n:$entity)
@@ -50,25 +58,30 @@ class Manager {
 
         $params = ['ids' => $ids];
 
-        $result = $this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params);
+        $result = $this->_neo4j_client->executeQuery($query, $params, true);
 
         $result = $result->getSingleResult();
 
-        if (!isset($result[0]['info'])) {
-            return [];
-        }
-
+        /** @var list<array<string, mixed>>|null $infos */
+        $infos = $result?->getAsMap(0)->getAsArrayList('info')->toArray();
+        $infos ??= [];
         $objects = [];
 
-        foreach ($result[0]['info'] as $info) {
+        foreach ($infos as $info) {
+            /** @psalm-suppress MixedArrayOffset */
             $objects[$info[$key]] = new $model_class($info, $this);
         }
 
         return $objects;
     }
 
-    public function fetchObjectsByLabel(string $model_class, array $order_by = null, int $limit = null, bool $force_leader = false) : array
+    /**
+     * @param class-string<ModelAbstract> $model_class
+     * @param array{0: string, 1: string}&array<string> $order_by
+     */
+    public function fetchObjectsByLabel(string $model_class, array $order_by = null, int $limit = null, bool $force_leader = false): array
     {
+        /** @var string */
         $entity = $model_class::ENTITY;
 
         if ($limit === null && $order_by === null) {
@@ -85,7 +98,7 @@ class Manager {
             $params = [
                 'limit' => $limit,
             ];
-        } elseif ($order_by !== null && $limit === null) {
+        } elseif ($limit === null) {
             $order_parts = self::getOrderParts($order_by, 'n.');
 
             $query = "MATCH (n:$entity)
@@ -108,21 +121,25 @@ class Manager {
             ];
         }
 
-        $result = $this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params)->getSingleResult();
+        $result = $this->execute($query, $params, true);
 
-        if (!isset($result[0]['info']) || !is_array($result[0]['info'])) {
-            throw new ObjectFetchException();
-        }
+        /** @psalm-suppress TooManyTemplateParams */
+        $infos = $result->getAsMap(0)
+            ->getAsArrayList('info')
+            ->map(static fn(CypherMap $m) => $m->toArray())
+            ->toArray();
 
-        $objects = $model_class::fromDataList($result[0]['info'], $this);
-        //print_r($objects);exit;
-
-        return $objects;
-        //print_r($result);exit;
+        return $model_class::fromDataList($infos, $this);
     }
 
-    public function fetchObjectsByLabelAndProps(string $model_class, array $props, array $order_by = null, int $limit = null, bool $force_leader = false) : array
+    /**
+     * @param class-string<ModelAbstract> $model_class
+     * @param array<string, mixed> $props
+     * @param array{0: string, 1: string}&array<string> $order_by
+     */
+    public function fetchObjectsByLabelAndProps(string $model_class, array $props, array $order_by = null, int $limit = null, bool $force_leader = false): array
     {
+        /** @var string */
         $entity = $model_class::ENTITY;
 
         $props_info = $this->_getPropsInfo($props);
@@ -144,7 +161,7 @@ class Manager {
             $params = array_merge($where_props, [
                 'limit' => $limit,
             ]);
-        } elseif ($order_by !== null && $limit === null) {
+        } elseif ($limit === null) {
             $order_parts = self::getOrderParts($order_by, 'n.');
 
             $query = "MATCH (n:$entity)
@@ -167,25 +184,25 @@ class Manager {
             ]);
         }
 
-        $result = $this->_getNeo4jReadClient($force_leader)->executeQuery($query, $params)->getSingleResult();
 
-        if (!isset($result[0]['info']) || !is_array($result[0]['info'])) {
-            throw new ObjectFetchException();
-        }
-
-        $objects = $model_class::fromDataList($result[0]['info'], $this);
-
-        return $objects;
+        /** @psalm-suppress TooManyTemplateParams */
+        return $model_class::fromDataList(
+            $this->execute($query, $params, true)
+                ->getAsMap(0)
+                ->getAsArrayList('info')
+                ->map(static fn(Map $x) => $x->toArray())
+                ->toArray(),
+            $this
+        );
     }
 
-    public function createNode(ModelAbstract $object)
+    public function createNode(NodeModelAbstract $object): NodeModelAbstract
     {
         $entity = $object->getEntityType();
 
         $property_info = $object->getPropertyInfo();
 
         if (isset($property_info['extra'][ModelAbstract::TYPE_AUTO_INCREMENT])) {
-            // regular with auto increment
             $auto_increment_id_field = $property_info['extra'][ModelAbstract::TYPE_AUTO_INCREMENT];
             $query = "
                      MERGE (n:SimpleNeo4jConfig{name:\$config_name})
@@ -207,7 +224,7 @@ class Manager {
                 'props' => $property_info['props'],
             ];
         } else {
-            $primary_field =  $property_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
+            $primary_field = $property_info['extra'][ModelAbstract::PROP_INFO_PRIMARY] ?? throw new LogicException('Primary field must be defined if no auto increment has been given');
 
             $query = "
                      CREATE (n:$entity{{$primary_field}:\$use_id})
@@ -223,10 +240,9 @@ class Manager {
         }
 
         try {
-            $result = $this->_neo4j_client->executeQuery($query, $params);
-            $info = $result->getSingleResult()[0]['info'];
-            return $object->withProperties($info, $this);
-            //print_r($result->getSingleResult());exit;
+            $result = $this->execute($query, $params, false);
+
+            return $object->withProperties($result->getAsMap(0)->getAsMap('info')->toArray(), $this);
         } catch (HttpClient\Exception\CypherQueryException $e) {
             if ($e->isConstraintViolation()) {
                 throw new ConstraintViolationException();
@@ -236,7 +252,7 @@ class Manager {
         }
     }
 
-    public function createRelationship(RelationshipModelAbstract $relationship)
+    public function createRelationship(RelationshipModelAbstract $relationship): RelationshipModelAbstract
     {
         $from_node_info = $relationship->getStartNode()->getPropertyInfo();
 
@@ -244,10 +260,12 @@ class Manager {
 
         $to_node_info = $relationship->getEndNode()->getPropertyInfo();
 
-        $n1_primary_field = $from_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
-        $n2_primary_field = $to_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
-//print_r($to_node_info);exit;
+        $n1_primary_field = $from_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY] ?? '';
+        $n2_primary_field = $to_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY] ?? '';
+
+        /** @var string $n1_id */
         $n1_id = $from_node_info['props'][$n1_primary_field];
+        /** @var string $n2_id */
         $n2_id = $to_node_info['props'][$n2_primary_field];
 
         $relationship_type = $relationship->getEntityType();
@@ -264,11 +282,11 @@ class Manager {
                      RETURN r{.*, neo4j_id} as info
                   ";
 
-            $result = $this->_neo4j_client->executeQuery($query, [
+            $result = $this->execute($query, [
                 'n1_id' => $n1_id,
                 'n2_id' => $n2_id,
                 'rel_props' => $relationship_info['props'],
-            ]);
+            ], false);
         } else {
             $query = "
                      MATCH (n1:{$from_type}{{$n1_primary_field}:\$n1_id}), (n2:{$to_type}{{$n2_primary_field}:\$n2_id})
@@ -279,17 +297,20 @@ class Manager {
                      RETURN r{.*, neo4j_id} as info
                   ";
 
-            $result = $this->_neo4j_client->executeQuery($query, [
+            $result = $this->execute($query, [
                 'n1_id' => $n1_id,
                 'n2_id' => $n2_id,
                 'rel_props' => $relationship_info['props'],
-            ]);
+            ], false);
         }
 
-        return $relationship->withProperties($result->getSingleResult()[0]['info']);
+        return $relationship->withProperties($result->getAsMap(0)->getAsMap('info')->toArray());
     }
 
-    public static function getOrderParts(array $orders, string $prefix = '') : string
+    /**
+     * @param array{0: string, 1: string}&array<string> $orders
+     */
+    public static function getOrderParts(array $orders, string $prefix = ''): string
     {
         $orders_strings = [];
 
@@ -300,7 +321,12 @@ class Manager {
         return implode(', ', $orders_strings);
     }
 
-    public function loadRelationsForNode(NodeModelAbstract $node, array $relation_types) {
+    /**
+     * @param array<string> $relation_types
+     * @return array<string, list<RelationshipModelAbstract>>
+     */
+    public function loadRelationsForNode(NodeModelAbstract $node, array $relation_types): array
+    {
         $entity = $node->getEntityType();
         $node_id_info = $node->getPrimaryIdInfo();
 
@@ -308,11 +334,9 @@ class Manager {
 
         $formatted_relations = [];
 
-        $neo4j_client = $this->_getNeo4jReadClient($this->_forced_leader);
-
         foreach ($relations_info as $relation_name => $relation_info) {
             $formatted_relations[$relation_name] = [];
-            if  ($relation_info[ModelAbstract::PROP_INFO_RELATED_DIRECTION] === ModelAbstract::PROP_INFO_RELATED_DIRECTION_OUTGOING) {
+            if (($relation_info[ModelAbstract::PROP_INFO_RELATED_DIRECTION] ?? '') === ModelAbstract::PROP_INFO_RELATED_DIRECTION_OUTGOING) {
                 $left_arrow = '';
                 $right_arrow = '>';
             } else {
@@ -320,10 +344,18 @@ class Manager {
                 $right_arrow = '';
             }
 
+            if (!array_key_exists('related_type', $relation_info) || !array_key_exists('entity_type', $relation_info)) {
+                throw new LogicException('No related type defined for relation');
+            }
+
+            /** @var string $relEntity */
+            $relEntity = $relation_info['related_type']::ENTITY;
+            /** @var string $otherEntity */
+            $otherEntity = $relation_info['entity_type']::ENTITY;
             $query = '
                   MATCH (n:' . $entity . '{' . $node_id_info['name'] . ':$id})
                   WITH n
-                  MATCH (n)' . $left_arrow . '-[r:' . $relation_info['related_type']::ENTITY . ']-' . $right_arrow . '(other:' . $relation_info['entity_type']::ENTITY . ')
+                  MATCH (n)' . $left_arrow . '-[r:' . $relEntity . ']-' . $right_arrow . '(other:' . $otherEntity . ')
                   WITH other as rel_node, r, $rel_type as rel_type, ID(r) as neo4j_id
                   RETURN rel_node, r{.*, neo4j_id} as rel_rel, rel_type
                   ';
@@ -333,20 +365,25 @@ class Manager {
                 'id' => $node_id_info['value'],
             ];
 
-            $neo4j_client->addQueryToBatch($query, $params);
+            $this->_neo4j_client->addQueryToBatch($query, $params, true);
         }
 
-        $result = $neo4j_client->executeBatchQueries()->getAllResults();
+        $result = $this->_neo4j_client->executeBatchQueries()->getAllResults();
 
         foreach ($result as $relation_results) {
+            /** @var CypherMap $relation_result */
             foreach ($relation_results as $relation_result) {
+                /** @var array{rel_node: Node, rel_type: string, rel_rel: array{neo4j_id: int, ...<string, mixed>}} */
+                $relation_result = $relation_result->toArray();
                 $relation_info = $relations_info[$relation_result['rel_type']];
 
-                $relationship_type = $relation_info['related_type'];
-                $other_node_type = $relation_info['entity_type'];
+                /** @var class-string<RelationshipModelAbstract> $relationship_type */
+                $relationship_type = $relation_info['related_type'] ?? throw new LogicException('No related type defined for relation');
+                /** @var class-string<NodeModelAbstract> $other_node_type */
+                $other_node_type = $relation_info['entity_type'] ?? throw new LogicException('No entity type defined for relation');
                 $other_node = new $other_node_type($relation_result['rel_node'], $this);
 
-                if ($relation_info[ModelAbstract::PROP_INFO_RELATED_DIRECTION] === ModelAbstract::PROP_INFO_RELATED_DIRECTION_OUTGOING) {
+                if (($relation_info[ModelAbstract::PROP_INFO_RELATED_DIRECTION] ?? '') === ModelAbstract::PROP_INFO_RELATED_DIRECTION_OUTGOING) {
                     $relationship = new $relationship_type($node, $other_node, $relation_result['rel_rel']);
                 } else {
                     $relationship = new $relationship_type($other_node, $node, $relation_result['rel_rel']);
@@ -363,7 +400,7 @@ class Manager {
 
     }
 
-    public function saveNode(NodeModelAbstract $node) : ?NodeModelAbstract
+    public function saveNode(NodeModelAbstract $node): ?NodeModelAbstract
     {
         $modified_properties = $node->getModifiedProperties();
 
@@ -375,6 +412,10 @@ class Manager {
         $primary_id_info = $node->getPrimaryIdInfo();
         $model_class = get_class($node);
 
+        /**
+         * @psalm-suppress UndefinedConstant
+         * @var string $entity
+         */
         $entity = $node::ENTITY;
 
         $key = $primary_id_info['name'];
@@ -389,7 +430,7 @@ class Manager {
 
 
         try {
-            $result = $this->_neo4j_client->executeQuery($query, $params);
+            $result = $this->execute($query, $params, false);
         } catch (HttpClient\Exception\CypherQueryException $e) {
             if ($e->isConstraintViolation()) {
                 throw new ConstraintViolationException();
@@ -398,20 +439,18 @@ class Manager {
             throw $e;
         }
 
-        $result = $result->getSingleResult();
-
-        if (!isset($result[0]['info'])) {
-            return null;
-        }
-
-        return new $model_class($result[0]['info'], $this);
+        return new $model_class($result->getAsMap(0)->getAsMap('info')->toArray(), $this);
 
     }
 
-    public function deleteNode(NodeModelAbstract $node)
+    public function deleteNode(NodeModelAbstract $node): void
     {
         $primary_id_info = $node->getPrimaryIdInfo();
 
+        /**
+         * @var string $entity
+         * @psalm-suppress UndefinedConstant
+         */
         $entity = $node::ENTITY;
 
         $key = $primary_id_info['name'];
@@ -422,10 +461,10 @@ class Manager {
 
         $params = ['id' => $primary_id_info['value']];
 
-        $result = $this->_neo4j_client->executeQuery($query, $params);
+        $this->execute($query, $params, false);
     }
 
-    public function saveRelationship(RelationshipModelAbstract $relationship)
+    public function saveRelationship(RelationshipModelAbstract $relationship): RelationshipModelAbstract
     {
         $modified_properties = $relationship->getModifiedProperties();
 
@@ -436,10 +475,12 @@ class Manager {
         $from_node_info = $relationship->getStartNode()->getPropertyInfo();
         $to_node_info = $relationship->getEndNode()->getPropertyInfo();
 
-        $n1_primary_field = $from_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
-        $n2_primary_field = $to_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
+        $n1_primary_field = $from_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY] ?? '';
+        $n2_primary_field = $to_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY] ?? '';
 
+        /** @var string $n1_id */
         $n1_id = $from_node_info['props'][$n1_primary_field];
+        /** @var string $n2_id */
         $n2_id = $to_node_info['props'][$n2_primary_field];
 
         $relationship_type = $relationship->getEntityType();
@@ -458,25 +499,27 @@ class Manager {
                  RETURN r{.*, neo4j_id} as info
               ";
 
-        $result = $this->_neo4j_client->executeQuery($query, [
+        $result = $this->execute($query, [
             'n1_id' => $n1_id,
             'n2_id' => $n2_id,
             'relationship_neo4j_id' => $relationship->getNeo4jId(),
             'props' => $modified_properties,
-        ]);
+        ], true);
 
-        return $relationship->withProperties($result->getSingleResult()[0]['info']);
+        return $relationship->withProperties($result->getAsMap(0)->getAsMap('info')->toArray());
     }
 
-    public function deleteRelationship(RelationshipModelAbstract $relationship)
+    public function deleteRelationship(RelationshipModelAbstract $relationship): void
     {
         $from_node_info = $relationship->getStartNode()->getPropertyInfo();
         $to_node_info = $relationship->getEndNode()->getPropertyInfo();
 
-        $n1_primary_field = $from_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
-        $n2_primary_field = $to_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY];
+        $n1_primary_field = $from_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY] ?? '';
+        $n2_primary_field = $to_node_info['extra'][ModelAbstract::PROP_INFO_PRIMARY] ?? '';
 
+        /** @var string $n1_id */
         $n1_id = $from_node_info['props'][$n1_primary_field];
+        /** @var string $n2_id */
         $n2_id = $to_node_info['props'][$n2_primary_field];
 
         $relationship_type = $relationship->getEntityType();
@@ -493,20 +536,26 @@ class Manager {
                  DELETE r
               ";
 
-        $result = $this->_neo4j_client->executeQuery($query, [
+        $this->execute($query, [
             'n1_id' => $n1_id,
             'n2_id' => $n2_id,
             'relationship_neo4j_id' => $relationship->getNeo4jId(),
-        ]);
+        ], false);
     }
 
-    private function _getPropsInfo(array $props) : array
+    /**
+     * @param array<string, mixed> $props
+     * @return array{where_string: string, where_props: array<string, mixed>}
+     */
+    private function _getPropsInfo(array $props): array
     {
         $where_parts = [];
         $where_props = [];
 
+        /** @var mixed $prop_value */
         foreach ($props as $prop_name => $prop_value) {
             $where_parts[] = 'n.' . $prop_name . '=$n_' . $prop_name;
+            /** @var mixed */
             $where_props['n_' . $prop_name] = $prop_value;
         }
 
@@ -514,5 +563,22 @@ class Manager {
             'where_string' => $where_parts ? ('WHERE ' . implode(' AND ', $where_parts)) : '',
             'where_props' => $where_props,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private function execute(string $query, array $params, bool $readonly): SummarizedResult
+    {
+        $result = $this->_neo4j_client->executeQuery($query, $params, $readonly);
+
+        // We have no option but to throw an exception here, as we can't return null,
+        // if the client has been configured not to throw errors we can use the
+        // stored error result instead.
+        /**
+         * @psalm-suppress InvalidThrow
+         * @var SummarizedResult
+         */
+        return $result->getSingleResult() ?? throw $result->getFirstError();
     }
 }

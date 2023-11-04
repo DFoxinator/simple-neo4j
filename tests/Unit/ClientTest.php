@@ -1,8 +1,10 @@
 <?php
 
-namespace SimpleNeo4j\Tests;
+namespace SimpleNeo4j\Tests\Unit;
 
-class ClientTest extends \PHPUnit_Framework_TestCase
+use PHPUnit\Framework\TestCase;
+
+class ClientTest extends TestCase
 {
     public function testClientCreationBasic()
     {
