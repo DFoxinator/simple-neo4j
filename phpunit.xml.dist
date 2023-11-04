@@ -1,18 +1,17 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<phpunit bootstrap="./tests/bootstrap.php"
-         colors="true">
+<phpunit colors="true" verbose="true"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         convertDeprecationsToExceptions="true"
+>
     <testsuites>
-        <testsuite>
-            <directory>./tests/unit</directory>
+        <testsuite name="Integration">
+            <directory>./tests/Integration</directory>
+        </testsuite>
+        <testsuite name="Unit">
+            <directory>./tests/Unit</directory>
         </testsuite>
     </testsuites>
     <php>
-        <ini name="memory_limit" value="-1"/>
+        <env name="CONNECTION" value="neo4j://neo4j:testtest@localhost" />
     </php>
-    <filter>
-        <blacklist>
-            <directory>./vendor</directory>
-            <directory>./tests/</directory>
-        </blacklist>
-    </filter>
 </phpunit>
