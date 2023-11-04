@@ -66,25 +66,6 @@ class Session extends ORM\NodeModelAbstract
         ]
     ];
 
-    protected $_facility = [
-        ORM\ModelAbstract::PROP_INFO_KEY => [
-            ORM\ModelAbstract::PROP_INFO_TYPE => ORM\ModelAbstract::TYPE_RELATION,
-            ORM\ModelAbstract::PROP_INFO_RELATED_TYPE => HasSession::class,
-            ORM\ModelAbstract::PROP_INFO_ENTITY_TYPE => Facility::class,
-            ORM\ModelAbstract::PROP_INFO_RELATED_DIRECTION => 'incoming',
-            ORM\ModelAbstract::PROP_INFO_DEFAULT => [],
-        ]
-    ];
-
-    protected $_court = [
-        ORM\ModelAbstract::PROP_INFO_KEY => [
-            ORM\ModelAbstract::PROP_INFO_TYPE => ORM\ModelAbstract::TYPE_RELATION,
-            ORM\ModelAbstract::PROP_INFO_RELATED_TYPE => HasSession::class,
-            ORM\ModelAbstract::PROP_INFO_ENTITY_TYPE => Court::class,
-            ORM\ModelAbstract::PROP_INFO_RELATED_DIRECTION => 'incoming',
-            ORM\ModelAbstract::PROP_INFO_DEFAULT => [],
-        ]
-    ];
 
     protected $_replays = [
         ORM\ModelAbstract::PROP_INFO_KEY => [
@@ -97,79 +78,6 @@ class Session extends ORM\NodeModelAbstract
     ];
 
     protected bool $_is_limited_public_session = false;
-
-    public function getId(): int
-    {
-        return $this->_id;
-    }
-
-
-    public function setCourt(?HasSession $has_session)
-    {
-
-        $this->_court = $has_session ? [$has_session] : [];
-
-    }
-
-    public function getCourtRel(): ?HasSession
-    {
-        if (!$this->_court) {
-            return null;
-        }
-        return $this->_court[0] ?? null;
-    }
-
-    public function getCourt(): ?Court
-    {
-
-        if (!$this->_court) {
-            return null;
-        }
-        return $this->_court[0]?->getStartNode() ?? null;
-
-    }
-
-    public function getCreatedTime(): int
-    {
-
-        return $this->_created_time;
-
-    }
-
-    public function getFacility(): Facility
-    {
-
-        return $this->_facility[0]->getStartNode();
-
-    }
-
-    public function getName(): string
-    {
-
-        return $this->_name;
-
-    }
-
-    public function getState(): int
-    {
-
-        return $this->_state;
-
-    }
-
-    public function isActive(): bool
-    {
-
-        return $this->getState() === self::STATE_ACTIVE && time() <= $this->_valid_through;
-
-    }
-
-    public function setState(int $state)
-    {
-
-        $this->_state = $state;
-
-    }
 
     public function getReplays(bool $include_only_purchased = false): array
     {
@@ -191,16 +99,5 @@ class Session extends ORM\NodeModelAbstract
         usort($replays, fn(Replay $a, Replay $b) => $a->getId() <=> $b->getId());
 
         return array_values($replays);
-
-        print_r($replays);
-        exit;
-
-    }
-
-    public function getKey(): string
-    {
-
-        return $this->_key;
-
     }
 }

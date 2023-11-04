@@ -489,6 +489,5 @@ class Replay extends ORM\NodeModelAbstract {
         $rel = $this->_session[0];
 
         return $rel->getStartNode();
-
     }
 }
