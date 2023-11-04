@@ -9,18 +9,16 @@ use SimpleNeo4j\HttpClient\Client;
 /**
  * @psalm-suppress MissingConstructor
  */
-abstract class AbstractClientIntegration extends TestCase
+trait CreatesClientFromEnv
 {
-    protected Client $client;
-
-    public function setUp(): void
+    protected function createClient(): Client
     {
         $errorMode = array_key_exists('NEO4J_ERROR_MODE', $_ENV) ? $_ENV['NEO4J_ERROR_MODE'] : null;
         if ($errorMode !== null && $errorMode !== 'hide' && $errorMode !== 'throw') {
             throw new Exception('Invalid error mode: ' . $errorMode . '. Valid values are: "hide", "throw" and null');
         }
 
-        $this->client = new Client([
+        return new Client([
             'host' => array_key_exists('NEO4J_HOST', $_ENV) ? $_ENV['NEO4J_HOST'] : null,
             'database' => array_key_exists('NEO4J_DATABASE', $_ENV) ? $_ENV['NEO4J_DATABASE'] : null,
             'port' => array_key_exists('NEO4J_PORT', $_ENV) ? (int) $_ENV['NEO4J_PORT'] : null,

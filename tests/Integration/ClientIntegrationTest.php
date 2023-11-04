@@ -3,8 +3,22 @@
 namespace SimpleNeo4j\Tests\Integration;
 
 
-class ClientIntegrationTest extends AbstractClientIntegration
+use PHPUnit\Framework\TestCase;
+use SimpleNeo4j\HttpClient\Client;
+
+class ClientIntegrationTest extends TestCase
 {
+    use CreatesClientFromEnv;
+
+    private Client $client;
+
+    public function setUp(): void
+    {
+        parent::setUp();
+
+        $this->client = $this->createClient();
+    }
+
     public function testAcceptanceExecuteQuery(): void
     {
         $result = $this->client->executeQuery('RETURN 1 AS x');
