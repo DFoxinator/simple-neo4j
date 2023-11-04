@@ -12,6 +12,19 @@
         </testsuite>
     </testsuites>
     <php>
-        <env name="CONNECTION" value="neo4j://neo4j:testtest@localhost" />
+        <env name="NEO4J_HOST" value="neo4j"/>
+<!--        <env name="NEO4J_DATABASE" value=""/>-->
+<!--        <env name="NEO4J_PORT" value=""/>-->
+<!--        <env name="NEO4J_SECURE" value=""/>-->
+<!--        <env name="NEO4J_PROTOCOL" value=""/>-->
+<!--        <env name="NEO4J_ERROR_MODE" value=""/>-->
+<!--        <env name="NEO4J_NO_SSL_VERIFY" value="" />-->
+<!--        <env name="NEO4J_SHOULD_RETRY_CYPHER_ERRORS" value=""/>-->
+<!--        <env name="NEO4J_CYPHER_MAX_RETRIES" value=""/>-->
+<!--        <env name="NEO4J_CYPHER_RETRY_MAX_INTERVAL_MS" value="" />-->
+<!--        <env name="NEO4J_REQUEST_MAX_RETRIES" value="" />-->
+<!--        <env name="NEO4J_REQUEST_RETRY_INTERVAL_MS" value="" />-->
+        <env name="NEO4J_USERNAME" value="neo4j" />
+        <env name="NEO4J_PASSWORD" value="testtest" />
     </php>
 </phpunit>
