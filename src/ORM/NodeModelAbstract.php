@@ -2,34 +2,24 @@
 
 namespace SimpleNeo4j\ORM;
 
-use LogicException;
-
-/**
- * @psalm-import-type FieldInfo from ModelAbstract
- */
 abstract class NodeModelAbstract extends ModelAbstract {
 
-    public function withProperties(array $properties, Manager|null $manager = null) : static
+    public function withProperties(array $properties, Manager $manager = null) : ModelAbstract
     {
-        return new $this($properties, $manager ?? $this->manager);
+        return new $this($properties, $manager ?? $this->_manager);
     }
 
-    public function __get(string $name)
+    public function __get($name)
     {
-        $relations = $this->getManagerGuarded()->loadRelationsForNode($this, [$name]);
+        $relations = $this->_manager->loadRelationsForNode($this, [$name]);
 
         foreach ($relations as $relation_name => $relation_set) {
             $this->{$relation_name} = $relation_set;
         }
 
-        /** @psalm-suppress PossiblyUndefinedVariable */
         return $this->{$relation_name};
     }
 
-    /**
-     * @param array<string> $relation_names
-     * @return array<string, FieldInfo>
-     */
     public function getRelationsInfo(array $relation_names) : array
     {
         $relations_info = [];
@@ -46,13 +36,9 @@ abstract class NodeModelAbstract extends ModelAbstract {
             }
         }
 
-        /** @var array<string, FieldInfo> */
         return $relations_info;
     }
 
-    /**
-     * @return array{name: string, value: mixed}
-     */
     public function getPrimaryIdInfo() : array
     {
         foreach ($this->_field_info as $field_name => $field_info) {
@@ -64,22 +50,10 @@ abstract class NodeModelAbstract extends ModelAbstract {
             }
         }
 
-        throw new LogicException('Cannot find primary ID for node');
+        // throw error!
     }
 
-    /**
-     * @return Manager
-     */
-    protected function getManagerGuarded(): Manager
-    {
-        if ($this->manager === null) {
-            throw new LogicException('Cannot load relations without a manager');
-        }
-
-        return $this->manager;
-    }
-
-    protected function _preloadAllRelations(): void
+    protected function _preloadAllRelations()
     {
         $relation_names = [];
 
@@ -91,11 +65,13 @@ abstract class NodeModelAbstract extends ModelAbstract {
             }
         }
 
-        $relations = $this->getManagerGuarded()->loadRelationsForNode($this, $relation_names);
+        $relations = $this->_manager->loadRelationsForNode($this, $relation_names);
 
         foreach ($relations as $relation_name => $relation_set) {
             $this->{$relation_name} = $relation_set;
         }
+
+        return $this->{$relation_name};
     }
 
 }
