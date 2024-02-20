@@ -3,13 +3,11 @@
   "description": "Simple Neo4j Client",
   "license": "MIT",
   "require": {
-    "php": "^8.0",
-    "laudis/neo4j-php-client": "^3.0"
+    "php": ">=7.4",
+    "guzzlehttp/guzzle": "^7.5.0"
   },
   "require-dev": {
-    "phpunit/phpunit": "9.5",
-    "vimeo/psalm": "^5.15",
-    "psalm/plugin-phpunit": "^0.18.4"
+    "phpunit/phpunit": "9.5"
   },
   "autoload": {
     "psr-4": {
@@ -19,11 +17,6 @@
   "autoload-dev": {
     "psr-4": {
       "SimpleNeo4j\\Tests\\": "tests/"
-    }
-  },
-  "config": {
-    "allow-plugins": {
-      "php-http/discovery": true
     }
   }
 }

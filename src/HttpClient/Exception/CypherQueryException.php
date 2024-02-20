@@ -2,22 +2,28 @@
 
 namespace SimpleNeo4j\HttpClient\Exception;
 
-use Throwable;
-
 class CypherQueryException extends SimpleNeo4jException
 {
-    public function __construct(private string $cypherErrorCode, string $message = "", int $code = 0, ?Throwable $previous = null)
+    /**
+     * @var mixed
+     */
+    private $_cypher_error_code;
+
+    /**
+     * @param mixed $error_code
+     */
+    public function setCypherErrorCode($error_code)
     {
-        parent::__construct($message, $code, $previous);
+        $this->_cypher_error_code = $error_code;
     }
 
     public function getCypherErrorCode() : string
     {
-        return $this->cypherErrorCode;
+        return $this->_cypher_error_code;
     }
 
     public function isConstraintViolation() : bool
     {
-        return $this->cypherErrorCode === 'Neo.ClientError.Schema.ConstraintValidationFailed';
+        return $this->_cypher_error_code === 'Neo.ClientError.Schema.ConstraintValidationFailed';
     }
 }
