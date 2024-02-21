@@ -18,7 +18,7 @@ class Client
     const CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS = 'cypher_retry_max_interval_ms';
     const CONFIG_REQUEST_MAX_RETRIES = 'request_max_retries';
     const CONFIG_REQUEST_RETRY_INTERVAL_MS = 'request_retry_interval_ms';
-
+    const CONFIG_ACCESS_MODE = 'access_mode';
     const ERROR_MODE_HIDE_ERRORS = 'hide';
     const ERROR_MODE_THROW_ERRORS = 'throw';
 
@@ -38,6 +38,7 @@ class Client
         self::CONFIG_CYPHER_RETRY_MAX_INTERVAL_MS => 50,
         self::CONFIG_REQUEST_MAX_RETRIES => 0,
         self::CONFIG_REQUEST_RETRY_INTERVAL_MS => 300,
+        self::CONFIG_ACCESS_MODE => null,
     ];
 
     const RETRYABLE_CYPHER_ERROR_CODES = [
@@ -97,6 +98,12 @@ class Client
     public function getCypherMaxRetries() : int
     {
         return $this->_config[self::CONFIG_CYPHER_MAX_RETRIES];
+    }
+
+    public function getAccessMode() : ?string {
+
+        return $this->_config[self::CONFIG_ACCESS_MODE];
+
     }
 
     public function getCypherRetryIntervalMs() : int
@@ -236,6 +243,12 @@ class Client
 
         if (array_key_exists('username', $this->_config)) {
             $headers['Authorization'] = 'Basic ' . base64_encode($this->_config['username'] . ':' . $this->_config['password']);
+        }
+
+        $access_mode = $this->getAccessMode();
+
+        if ($access_mode && is_string($access_mode)) {
+            $headers['Access-Mode'] = $access_mode;
         }
 
         return $headers;
